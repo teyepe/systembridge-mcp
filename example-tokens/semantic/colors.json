@@ -1,0 +1,82 @@
+{
+  "semantic": {
+    "color": {
+      "$type": "color",
+      "text": {
+        "primary":   { "$value": "{color.gray.900}",  "$description": "Primary text on light backgrounds" },
+        "secondary": { "$value": "{color.gray.600}",  "$description": "Secondary / supportive text" },
+        "disabled":  { "$value": "{color.gray.400}",  "$description": "Disabled state text" },
+        "inverse":   { "$value": "{color.white}",     "$description": "Text on dark backgrounds" },
+        "link":      { "$value": "{color.blue.600}",  "$description": "Hyperlink text" }
+      },
+      "background": {
+        "primary":   { "$value": "{color.white}",     "$description": "Main page background" },
+        "secondary": { "$value": "{color.gray.50}",   "$description": "Subtle secondary surface" },
+        "tertiary":  { "$value": "{color.gray.100}",  "$description": "Cards, containers" },
+        "inverse":   { "$value": "{color.gray.900}",  "$description": "Dark backgrounds" }
+      },
+      "border": {
+        "default":   { "$value": "{color.gray.200}",  "$description": "Default border color" },
+        "strong":    { "$value": "{color.gray.400}",  "$description": "Emphasized borders" },
+        "focus":     { "$value": "{color.blue.500}",  "$description": "Focus ring color" }
+      },
+      "feedback": {
+        "error": {
+          "text":       { "$value": "{color.red.700}" },
+          "background": { "$value": "{color.red.50}" },
+          "border":     { "$value": "{color.red.300}" }
+        },
+        "success": {
+          "text":       { "$value": "{color.green.700}" },
+          "background": { "$value": "{color.green.50}" },
+          "border":     { "$value": "{color.green.300}" }
+        },
+        "warning": {
+          "text":       { "$value": "{color.amber.700}" },
+          "background": { "$value": "{color.amber.50}" },
+          "border":     { "$value": "{color.amber.300}" }
+        },
+        "info": {
+          "text":       { "$value": "{color.blue.700}" },
+          "background": { "$value": "{color.blue.50}" },
+          "border":     { "$value": "{color.blue.300}" }
+        }
+      },
+      "interactive": {
+        "primary": {
+          "default": { "$value": "{color.blue.600}", "$description": "Primary action button / link" },
+          "hover":   { "$value": "{color.blue.700}" },
+          "active":  { "$value": "{color.blue.800}" }
+        },
+        "danger": {
+          "default": { "$value": "{color.red.600}", "$description": "Destructive action" },
+          "hover":   { "$value": "{color.red.700}" },
+          "active":  { "$value": "{color.red.800}" }
+        }
+      }
+    },
+    "spacing": {
+      "$type": "dimension",
+      "inline": {
+        "xs": { "$value": "{spacing.1}", "$description": "Tight inline spacing (icons, badges)" },
+        "sm": { "$value": "{spacing.2}" },
+        "md": { "$value": "{spacing.4}", "$description": "Default inline spacing" },
+        "lg": { "$value": "{spacing.6}" }
+      },
+      "stack": {
+        "xs": { "$value": "{spacing.2}", "$description": "Tight vertical spacing" },
+        "sm": { "$value": "{spacing.4}" },
+        "md": { "$value": "{spacing.6}", "$description": "Default block spacing" },
+        "lg": { "$value": "{spacing.8}" },
+        "xl": { "$value": "{spacing.12}" }
+      },
+      "inset": {
+        "xs": { "$value": "{spacing.2}" },
+        "sm": { "$value": "{spacing.3}" },
+        "md": { "$value": "{spacing.4}", "$description": "Default padding" },
+        "lg": { "$value": "{spacing.6}" },
+        "xl": { "$value": "{spacing.8}" }
+      }
+    }
+  }
+}

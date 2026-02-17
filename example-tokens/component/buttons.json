@@ -1,0 +1,61 @@
+{
+  "component": {
+    "button": {
+      "$description": "Button component tokens",
+      "padding-x":       { "$type": "dimension", "$value": "{semantic.spacing.inset.md}" },
+      "padding-y":       { "$type": "dimension", "$value": "{semantic.spacing.inset.xs}" },
+      "border-radius":   { "$type": "dimension", "$value": "{size.border-radius.md}" },
+      "font-size":       { "$type": "dimension", "$value": "{font.size.sm}" },
+      "font-weight":     { "$type": "fontWeight", "$value": "{font.weight.medium}" },
+      "gap":             { "$type": "dimension", "$value": "{semantic.spacing.inline.xs}" },
+      "primary": {
+        "$type": "color",
+        "background":    { "$value": "{semantic.color.interactive.primary.default}" },
+        "text":          { "$value": "{color.white}" },
+        "border":        { "$value": "{semantic.color.interactive.primary.default}" },
+        "hover-bg":      { "$value": "{semantic.color.interactive.primary.hover}" },
+        "active-bg":     { "$value": "{semantic.color.interactive.primary.active}" }
+      },
+      "danger": {
+        "$type": "color",
+        "background":    { "$value": "{semantic.color.interactive.danger.default}" },
+        "text":          { "$value": "{color.white}" },
+        "hover-bg":      { "$value": "{semantic.color.interactive.danger.hover}" }
+      }
+    },
+    "input": {
+      "$description": "Text input component tokens",
+      "padding-x":       { "$type": "dimension", "$value": "{semantic.spacing.inset.sm}" },
+      "padding-y":       { "$type": "dimension", "$value": "{semantic.spacing.inset.xs}" },
+      "border-radius":   { "$type": "dimension", "$value": "{size.border-radius.md}" },
+      "border-color":    { "$type": "color", "$value": "{semantic.color.border.default}" },
+      "border-width":    { "$type": "dimension", "$value": "{size.border-width.thin}" },
+      "font-size":       { "$type": "dimension", "$value": "{font.size.base}" },
+      "background":      { "$type": "color", "$value": "{semantic.color.background.primary}" },
+      "text":            { "$type": "color", "$value": "{semantic.color.text.primary}" },
+      "placeholder":     { "$type": "color", "$value": "{semantic.color.text.disabled}" },
+      "focus-border":    { "$type": "color", "$value": "{semantic.color.border.focus}" },
+      "error-border":    { "$type": "color", "$value": "{semantic.color.feedback.error.border}" }
+    },
+    "card": {
+      "$description": "Card component tokens",
+      "padding":         { "$type": "dimension", "$value": "{semantic.spacing.inset.lg}" },
+      "border-radius":   { "$type": "dimension", "$value": "{size.border-radius.lg}" },
+      "border-color":    { "$type": "color", "$value": "{semantic.color.border.default}" },
+      "background":      { "$type": "color", "$value": "{semantic.color.background.primary}" },
+      "gap":             { "$type": "dimension", "$value": "{semantic.spacing.stack.sm}" }
+    },
+    "badge": {
+      "$description": "Badge / tag component tokens — being replaced by 'tag' component",
+      "padding-x":       { "$type": "dimension", "$value": "{semantic.spacing.inset.xs}" },
+      "padding-y":       { "$type": "dimension", "$value": "{spacing.1}" },
+      "border-radius":   { "$type": "dimension", "$value": "{size.border-radius.full}" },
+      "font-size":       { "$type": "dimension", "$value": "{font.size.xs}" },
+      "deprecated": {
+        "message": "Badge component is being replaced by Tag",
+        "alternative": "component.tag",
+        "removeBy": "2026-06-01"
+      }
+    }
+  }
+}

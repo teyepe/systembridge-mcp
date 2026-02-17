@@ -1,0 +1,16 @@
+{
+  "tokenPaths": [
+    "example-tokens/**/*.json"
+  ],
+  "validation": {
+    "preset": "recommended"
+  },
+  "transformation": {
+    "platforms": ["css", "js"],
+    "buildPath": "build/"
+  },
+  "migration": {
+    "updateCodePatterns": ["src/**/*.{css,scss,js,ts,jsx,tsx}"],
+    "excludePaths": ["node_modules", "dist", "build"]
+  }
+}

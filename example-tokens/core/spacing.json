@@ -1,0 +1,37 @@
+{
+  "spacing": {
+    "$type": "dimension",
+    "$description": "Spacing scale based on 4px base unit",
+    "0":   { "$value": "0px" },
+    "1":   { "$value": "4px",  "$description": "Minimal spacing — tight elements" },
+    "2":   { "$value": "8px",  "$description": "Small spacing — related elements" },
+    "3":   { "$value": "12px", "$description": "Medium-small spacing" },
+    "4":   { "$value": "16px", "$description": "Base spacing — default gap" },
+    "5":   { "$value": "20px" },
+    "6":   { "$value": "24px", "$description": "Medium-large spacing" },
+    "8":   { "$value": "32px", "$description": "Large spacing — section gaps" },
+    "10":  { "$value": "40px" },
+    "12":  { "$value": "48px", "$description": "Extra-large spacing" },
+    "16":  { "$value": "64px", "$description": "Layout-level spacing" },
+    "20":  { "$value": "80px" },
+    "24":  { "$value": "96px" }
+  },
+  "size": {
+    "$type": "dimension",
+    "border-radius": {
+      "none":  { "$value": "0px" },
+      "sm":    { "$value": "2px" },
+      "md":    { "$value": "6px",  "$description": "Default border radius" },
+      "lg":    { "$value": "8px" },
+      "xl":    { "$value": "12px" },
+      "2xl":   { "$value": "16px" },
+      "full":  { "$value": "9999px", "$description": "Fully rounded (pill/circle)" }
+    },
+    "border-width": {
+      "none":    { "$value": "0px" },
+      "thin":    { "$value": "1px" },
+      "default": { "$value": "1px" },
+      "thick":   { "$value": "2px" }
+    }
+  }
+}

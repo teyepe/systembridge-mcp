@@ -4,7 +4,7 @@
  *
  * A Model Context Protocol server for design token management,
  * transformation, validation, evolution, multi-dimensional theming,
- * multi-brand support, and system generation.
+ * multi-brand support, system generation, and semantic token intelligence.
  *
  * Transport: STDIO (compatible with Claude Desktop and other MCP clients).
  */
@@ -39,6 +39,12 @@ import {
   listTemplatesTool,
   generateSystemTool,
 } from "./tools/factory.js";
+import {
+  describeOntologyTool,
+  scaffoldSemanticsTool,
+  auditSemanticsTool,
+  analyzeCoverageTool,
+} from "./tools/semantics.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -56,7 +62,7 @@ const config = loadConfig(PROJECT_ROOT);
 
 const server = new McpServer({
   name: "mcp-ds",
-  version: "0.2.0",
+  version: "0.3.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -431,6 +437,128 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tools — semantic token intelligence
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "describe_ontology",
+  "Explain the semantic token naming model — property classes (CSS targets), " +
+    "semantic intents, UX contexts, interaction states, emphasis modifiers, " +
+    "and the canonical naming formula. Use this to understand how semantic tokens " +
+    "should be structured.",
+  {},
+  async () => {
+    const { formatted } = describeOntologyTool();
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+server.tool(
+  "scaffold_semantics",
+  "Generate a minimum viable semantic token set from a component inventory. " +
+    "Provide a comma-separated list of components (e.g. 'button, text-input, card, alert') " +
+    "and get properly structured tokens with CSS property class separation, " +
+    "intent coverage, and state completeness.",
+  {
+    components: z
+      .string()
+      .describe(
+        "Comma-separated component names, e.g. 'button, text-input, card, alert, tabs'",
+      ),
+    includeModifiers: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include emphasis modifiers (strong/soft/plain) for each intent. Default: false (start minimal).",
+      ),
+    includeGlobalTokens: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include global (context-free) semantic tokens like background.base, text.accent. Default: true.",
+      ),
+    additionalIntents: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated additional intents beyond defaults, e.g. 'warning,info'.",
+      ),
+    valueStrategy: z
+      .enum(["reference", "placeholder", "empty"])
+      .optional()
+      .describe(
+        "How to fill placeholder values: 'reference' (core token refs), 'placeholder' (#TODO), 'empty'. Default: reference.",
+      ),
+    format: z
+      .enum(["flat", "nested"])
+      .optional()
+      .describe("Output format: 'flat' or 'nested' (W3C DT). Default: flat."),
+  },
+  async (args) => {
+    const { formatted } = await scaffoldSemanticsTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+server.tool(
+  "audit_semantics",
+  "Run a comprehensive semantic token audit on your existing token set. " +
+    "Analyzes naming compliance, property-class separation, coverage gaps, " +
+    "scoping violations, accessibility pairing, and suggests migrations. " +
+    "Returns a health score (0-100) and detailed report.",
+  {
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "Only audit tokens starting with this path prefix, e.g. 'semantic' or 'color.semantic'. " +
+          "Comma-separated for multiple prefixes.",
+      ),
+    skipRules: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated rule IDs to skip, e.g. 'over-abstraction,cross-concern-shared-value'.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await auditSemanticsTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+server.tool(
+  "analyze_coverage",
+  "Show the semantic token coverage matrix — which UX contexts have " +
+    "which property classes covered, and where the gaps are. " +
+    "Displays a table of contexts × property classes with status indicators.",
+  {
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "Only analyze tokens starting with this path prefix.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await analyzeCoverageTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Prompts — guided workflows
 // ---------------------------------------------------------------------------
 
@@ -507,6 +635,53 @@ server.prompt(
               `   - Deprecated tokens still in use\n` +
               `   - Missing descriptions/types\n` +
               `   - Duplicate values that could be consolidated`,
+          },
+        },
+      ],
+    };
+  },
+);
+
+server.prompt(
+  "design-semantic-tokens",
+  "Guided workflow to design semantic tokens for your component inventory. " +
+    "Understands your components, scaffolds the right token surface, and audits for gaps.",
+  {
+    components: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated component names, e.g. 'button, text-input, card, alert'",
+      ),
+  },
+  async (args) => {
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `I need help designing semantic tokens for my design system.\n\n` +
+              (args.components
+                ? `My component inventory: ${args.components}\n\n`
+                : `I haven't specified components yet — please ask me about my component inventory.\n\n`) +
+              `Please follow this workflow:\n\n` +
+              `1. Use describe_ontology to understand the naming model\n` +
+              `2. Use scaffold_semantics with my components to generate a starting token set\n` +
+              `3. Use audit_semantics to check my existing tokens (if any) for issues\n` +
+              `4. Use analyze_coverage to show the coverage matrix\n` +
+              `5. Based on all findings, provide:\n` +
+              `   - The recommended semantic token structure\n` +
+              `   - Specific token files I should create\n` +
+              `   - Any tokens I need to rename or restructure\n` +
+              `   - Gaps I need to fill\n` +
+              `   - Accessibility pairing recommendations\n` +
+              `6. Pay special attention to:\n` +
+              `   - CSS property class separation (background ≠ text ≠ border)\n` +
+              `   - Every background needs a paired text/icon for contrast\n` +
+              `   - Interactive components need full state coverage\n` +
+              `   - Don't over-engineer — start with minimum viable tokens`,
           },
         },
       ],

@@ -13,6 +13,11 @@
 
 import type { DesignToken } from "../types.js";
 import {
+  computeContrast,
+  resolveTokenColor,
+  type ContrastResult,
+} from "../color/index.js";
+import {
   ALL_PROPERTY_CLASSES,
   SEMANTIC_INTENTS,
   UX_CONTEXTS,
@@ -113,6 +118,14 @@ export interface AccessibilityAnalysis {
   pairs: ContrastPair[];
   /** Pairs that couldn't be formed (missing foreground or background) */
   unpairedTokens: string[];
+  /** Number of pairs with computable contrast values */
+  computablePairs: number;
+  /** Number of pairs that fail WCAG 2.1 AA for normal text */
+  wcagFailures: number;
+  /** Number of pairs with APCA Lc below body-text threshold (75) */
+  apcaFailures: number;
+  /** Contrast score 0-1 (ratio of passing pairs to computable pairs) */
+  contrastScore: number;
 }
 
 export interface ContrastPair {
@@ -126,6 +139,12 @@ export interface ContrastPair {
   foregroundValue: string;
   /** Common context (intent + uxContext + state) */
   context: string;
+  /** Whether both values could be resolved to colors */
+  computable: boolean;
+  /** Full contrast result (when computable) */
+  contrast?: ContrastResult;
+  /** Issue description if contrast fails thresholds */
+  issue?: string;
 }
 
 // ---- Migration ----
@@ -182,9 +201,9 @@ export function auditSemanticTokens(
   const accessibility = analyzeAccessibility(tokenSet);
   const migration = suggestMigrations(tokenSet);
 
-  const healthScore = computeHealthScore(structure, coverage, scoping);
+  const healthScore = computeHealthScore(structure, coverage, scoping, accessibility);
 
-  const summary = buildSummary(healthScore, structure, coverage, scoping, migration);
+  const summary = buildSummary(healthScore, structure, coverage, scoping, accessibility, migration);
 
   return {
     healthScore,
@@ -362,22 +381,68 @@ function analyzeAccessibility(
         ...group.backgrounds.map(([p]) => p),
       );
     } else {
-      // Create pairs
+      // Create pairs and compute contrast
       for (const [bgPath, bgToken] of group.backgrounds) {
         for (const [fgPath, fgToken] of group.foregrounds) {
+          const bgValue = String(bgToken.resolvedValue ?? bgToken.value);
+          const fgValue = String(fgToken.resolvedValue ?? fgToken.value);
+
+          const bgHex = resolveTokenColor(bgToken);
+          const fgHex = resolveTokenColor(fgToken);
+          const computable = !!(bgHex && fgHex);
+
+          let contrast: ContrastResult | undefined;
+          let issue: string | undefined;
+
+          if (computable) {
+            contrast = computeContrast(fgHex!, bgHex!, "both");
+
+            // Determine issues
+            const issues: string[] = [];
+            if (contrast.wcag21 && contrast.wcag21.levelNormal === "fail") {
+              issues.push(
+                `WCAG 2.1 AA fails for normal text (ratio ${contrast.wcag21.ratio.toFixed(2)}:1, need 4.5:1)`,
+              );
+            }
+            if (contrast.apca && Math.abs(contrast.apca.lc) < 60) {
+              issues.push(
+                `APCA below large-text threshold (Lc ${contrast.apca.lc.toFixed(1)}, need ≥60)`,
+              );
+            }
+            if (issues.length > 0) {
+              issue = issues.join("; ");
+            }
+          }
+
           pairs.push({
             backgroundPath: bgPath,
             foregroundPath: fgPath,
-            backgroundValue: String(bgToken.resolvedValue ?? bgToken.value),
-            foregroundValue: String(fgToken.resolvedValue ?? fgToken.value),
+            backgroundValue: bgValue,
+            foregroundValue: fgValue,
             context,
+            computable,
+            contrast,
+            issue,
           });
         }
       }
     }
   }
 
-  return { pairs, unpairedTokens };
+  // Compute summary stats
+  const computablePairs = pairs.filter((p) => p.computable).length;
+  const wcagFailures = pairs.filter(
+    (p) => p.contrast?.wcag21?.levelNormal === "fail",
+  ).length;
+  const apcaFailures = pairs.filter(
+    (p) => p.contrast?.apca && Math.abs(p.contrast.apca.lc) < 75,
+  ).length;
+  const contrastScore =
+    computablePairs > 0
+      ? (computablePairs - wcagFailures) / computablePairs
+      : 1;
+
+  return { pairs, unpairedTokens, computablePairs, wcagFailures, apcaFailures, contrastScore };
 }
 
 // ---------------------------------------------------------------------------
@@ -533,29 +598,37 @@ function computeHealthScore(
   structure: StructureAnalysis,
   coverage: CoverageAnalysis,
   scoping: ScopingReport,
+  accessibility?: AccessibilityAnalysis,
 ): number {
   // Weighted components:
-  // - Naming compliance: 30%
-  // - Coverage score: 25%
-  // - Scoping errors: 30% (penalize hard for errors)
-  // - Scoping warnings: 15% (gentler penalty)
+  // - Naming compliance: 25%
+  // - Coverage score: 20%
+  // - Scoping errors: 25% (penalize hard for errors)
+  // - Scoping warnings: 10% (gentler penalty)
+  // - Contrast compliance: 20% (weighted by computable pairs)
 
   const complianceScore = structure.complianceRate * 100;
   const coverageScore = coverage.coverageScore * 100;
 
-  // Error penalty: each error removes up to 5 points (max 30 point loss)
-  const errorPenalty = Math.min(scoping.errors * 5, 30);
-  const scopingErrorScore = 100 - (errorPenalty / 30) * 100;
+  // Error penalty: each error removes up to 5 points (max 25 point loss)
+  const errorPenalty = Math.min(scoping.errors * 5, 25);
+  const scopingErrorScore = 100 - (errorPenalty / 25) * 100;
 
-  // Warning penalty: each warning removes 2 points (max 15 point loss)
-  const warningPenalty = Math.min(scoping.warnings * 2, 15);
-  const scopingWarningScore = 100 - (warningPenalty / 15) * 100;
+  // Warning penalty: each warning removes 2 points (max 10 point loss)
+  const warningPenalty = Math.min(scoping.warnings * 2, 10);
+  const scopingWarningScore = 100 - (warningPenalty / 10) * 100;
+
+  // Contrast score: ratio of passing pairs (fallback to 100 if no computable pairs)
+  const contrastScore = accessibility
+    ? accessibility.contrastScore * 100
+    : 100;
 
   return Math.round(
-    complianceScore * 0.3 +
-    coverageScore * 0.25 +
-    scopingErrorScore * 0.3 +
-    scopingWarningScore * 0.15,
+    complianceScore * 0.25 +
+    coverageScore * 0.2 +
+    scopingErrorScore * 0.25 +
+    scopingWarningScore * 0.1 +
+    contrastScore * 0.2,
   );
 }
 
@@ -568,6 +641,7 @@ function buildSummary(
   structure: StructureAnalysis,
   coverage: CoverageAnalysis,
   scoping: ScopingReport,
+  accessibility: AccessibilityAnalysis,
   migration: MigrationSuggestion[],
 ): string {
   const lines: string[] = [];
@@ -637,6 +711,35 @@ function buildSummary(
     }
     lines.push("");
   }
+
+  // Accessibility / Contrast
+  lines.push(`### Accessibility (Contrast)`);
+  if (accessibility.computablePairs > 0) {
+    lines.push(
+      `- ${accessibility.pairs.length} contrast pair(s) detected, ${accessibility.computablePairs} computable`,
+    );
+    lines.push(
+      `- WCAG 2.1 AA failures: ${accessibility.wcagFailures} / ${accessibility.computablePairs}`,
+    );
+    lines.push(
+      `- APCA below body-text (Lc 75): ${accessibility.apcaFailures} / ${accessibility.computablePairs}`,
+    );
+    lines.push(
+      `- Contrast score: ${Math.round(accessibility.contrastScore * 100)}%`,
+    );
+  } else if (accessibility.pairs.length > 0) {
+    lines.push(
+      `- ${accessibility.pairs.length} contrast pair(s) detected but values are unresolvable references`,
+    );
+  } else {
+    lines.push("- No contrast pairs detected (no matching foreground/background tokens)");
+  }
+  if (accessibility.unpairedTokens.length > 0) {
+    lines.push(
+      `- ⚠️ ${accessibility.unpairedTokens.length} token(s) without a matching pair`,
+    );
+  }
+  lines.push("");
 
   // Recommendations
   lines.push(`### Recommendations`);

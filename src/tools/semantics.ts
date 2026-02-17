@@ -6,9 +6,15 @@
  *   - scaffold_semantics:    Generate semantic tokens from a component inventory
  *   - audit_semantics:       Audit an existing token set for structural issues
  *   - analyze_coverage:      Show the coverage matrix for the token set
+ *   - check_contrast:        Check contrast ratios for foreground/background pairs
  */
 import type { DesignToken, McpDsConfig } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
+import {
+  computeContrast,
+  resolveTokenColor,
+  type ContrastResult,
+} from "../lib/color/index.js";
 import {
   ALL_PROPERTY_CLASSES,
   SEMANTIC_INTENTS,
@@ -34,6 +40,11 @@ import {
   auditSemanticTokens,
   type SemanticAuditResult,
 } from "../lib/semantics/audit.js";
+import {
+  writeTokenFiles,
+  type SplitStrategy,
+  type MergeStrategy,
+} from "../lib/io/writer.js";
 
 // ---------------------------------------------------------------------------
 // describe_ontology — explain the naming model
@@ -152,6 +163,10 @@ export async function scaffoldSemanticsTool(
     additionalIntents?: string;
     valueStrategy?: string;
     format?: string;
+    outputDir?: string;
+    dryRun?: boolean;
+    mergeStrategy?: string;
+    splitStrategy?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
@@ -205,11 +220,32 @@ export async function scaffoldSemanticsTool(
 
   // Show the tokens
   const nestedJson = tokensToNestedJson(result.tokens);
-  lines.push("## Generated Tokens (W3C Design Tokens format)");
-  lines.push("");
-  lines.push("```json");
-  lines.push(JSON.stringify(nestedJson, null, 2));
-  lines.push("```");
+
+  // ---- File writing (optional) ----
+  if (args.outputDir) {
+    const split = (args.splitStrategy as SplitStrategy) ?? "by-context";
+    const merge = (args.mergeStrategy as MergeStrategy) ?? "additive";
+    const dryRun = args.dryRun ?? false;
+
+    const writeResult = writeTokenFiles(
+      result.tokens,
+      args.outputDir,
+      projectRoot,
+      { split, merge, dryRun, filePrefix: "semantic-tokens" },
+    );
+
+    lines.push("## File Output");
+    lines.push("");
+    lines.push(writeResult.summary);
+    lines.push("");
+  } else {
+    // No output dir — show JSON inline
+    lines.push("## Generated Tokens (W3C Design Tokens format)");
+    lines.push("");
+    lines.push("```json");
+    lines.push(JSON.stringify(nestedJson, null, 2));
+    lines.push("```");
+  }
 
   return {
     formatted: lines.join("\n"),
@@ -366,4 +402,170 @@ export async function analyzeCoverageTool(
   }
 
   return { formatted: lines.join("\n") };
+}
+
+// ---------------------------------------------------------------------------
+// check_contrast — WCAG 2.1 + APCA contrast checking
+// ---------------------------------------------------------------------------
+
+export async function checkContrastTool(
+  args: {
+    foreground?: string;
+    background?: string;
+    pathPrefix?: string;
+    algorithm?: string;
+    threshold?: string;
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<{ formatted: string; results: unknown }> {
+  const algorithm = (args.algorithm as "wcag21" | "apca" | "both") ?? "both";
+
+  // --- Mode 1: Explicit color values ---
+  if (args.foreground && args.background) {
+    const result = computeContrast(args.foreground, args.background, algorithm);
+    const lines: string[] = [];
+    lines.push("# Contrast Check");
+    lines.push("");
+    lines.push(`**Foreground:** ${args.foreground}`);
+    lines.push(`**Background:** ${args.background}`);
+    lines.push("");
+    lines.push(formatContrastResult(result));
+
+    return { formatted: lines.join("\n"), results: result };
+  }
+
+  // --- Mode 2: Scan token set for all foreground/background pairs ---
+  const tokenMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(tokenMap);
+
+  // Optionally filter by path prefix
+  let filteredMap = tokenMap;
+  if (args.pathPrefix) {
+    const prefixes = args.pathPrefix.split(",").map((p) => p.trim());
+    filteredMap = new Map(
+      [...tokenMap].filter(([path]) =>
+        prefixes.some((prefix) => path.startsWith(prefix)),
+      ),
+    );
+  }
+
+  const auditResult = auditSemanticTokens(filteredMap);
+  const { accessibility } = auditResult;
+
+  // Optional numeric threshold filter
+  const minRatio = args.threshold ? parseFloat(args.threshold) : undefined;
+
+  const lines: string[] = [];
+  lines.push("# Contrast Audit");
+  lines.push("");
+  lines.push(`Scanned **${filteredMap.size}** tokens, found **${accessibility.pairs.length}** contrast pair(s).`);
+  lines.push(`Computable: **${accessibility.computablePairs}** | ` +
+    `WCAG failures: **${accessibility.wcagFailures}** | ` +
+    `APCA < 75: **${accessibility.apcaFailures}**`);
+  lines.push(`Contrast score: **${Math.round(accessibility.contrastScore * 100)}%**`);
+  lines.push("");
+
+  // Show failing pairs
+  const failing = accessibility.pairs.filter((p) => {
+    if (!p.computable) return false;
+    if (p.issue) return true;
+    if (minRatio && p.contrast?.wcag21 && p.contrast.wcag21.ratio < minRatio) return true;
+    return false;
+  });
+
+  if (failing.length > 0) {
+    lines.push("## Failing Pairs");
+    lines.push("");
+    for (const pair of failing.slice(0, 50)) {
+      lines.push(`### ${pair.context}`);
+      lines.push(`- **FG:** \`${pair.foregroundPath}\` → ${pair.foregroundValue}`);
+      lines.push(`- **BG:** \`${pair.backgroundPath}\` → ${pair.backgroundValue}`);
+      if (pair.contrast) {
+        lines.push(formatContrastResult(pair.contrast));
+      }
+      if (pair.issue) {
+        lines.push(`- ⚠️ ${pair.issue}`);
+      }
+      lines.push("");
+    }
+    if (failing.length > 50) {
+      lines.push(`... and ${failing.length - 50} more failing pairs.`);
+      lines.push("");
+    }
+  } else {
+    lines.push("✅ All computable pairs pass contrast thresholds.");
+    lines.push("");
+  }
+
+  // Show passing pairs summary
+  const passing = accessibility.pairs.filter((p) => p.computable && !p.issue);
+  if (passing.length > 0) {
+    lines.push("## Passing Pairs");
+    lines.push("");
+    lines.push(`${passing.length} pair(s) meet WCAG 2.1 AA and APCA thresholds.`);
+
+    // Show first few as examples
+    for (const pair of passing.slice(0, 10)) {
+      const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
+      const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
+      lines.push(`- \`${pair.foregroundPath}\` on \`${pair.backgroundPath}\`: ratio ${ratio}:1, Lc ${lc}`);
+    }
+    if (passing.length > 10) {
+      lines.push(`  ... and ${passing.length - 10} more.`);
+    }
+    lines.push("");
+  }
+
+  // Unpaired tokens warning
+  if (accessibility.unpairedTokens.length > 0) {
+    lines.push("## Unpaired Tokens");
+    lines.push("");
+    lines.push(`${accessibility.unpairedTokens.length} token(s) have no matching foreground/background pair:`);
+    for (const t of accessibility.unpairedTokens.slice(0, 20)) {
+      lines.push(`- \`${t}\``);
+    }
+    if (accessibility.unpairedTokens.length > 20) {
+      lines.push(`  ... and ${accessibility.unpairedTokens.length - 20} more.`);
+    }
+  }
+
+  return {
+    formatted: lines.join("\n"),
+    results: {
+      totalPairs: accessibility.pairs.length,
+      computablePairs: accessibility.computablePairs,
+      wcagFailures: accessibility.wcagFailures,
+      apcaFailures: accessibility.apcaFailures,
+      contrastScore: accessibility.contrastScore,
+      failingPairs: failing.map((p) => ({
+        foreground: p.foregroundPath,
+        background: p.backgroundPath,
+        contrast: p.contrast,
+        issue: p.issue,
+      })),
+    },
+  };
+}
+
+/**
+ * Format a ContrastResult for display.
+ */
+function formatContrastResult(result: ContrastResult): string {
+  const parts: string[] = [];
+
+  if (result.wcag21) {
+    const w = result.wcag21;
+    parts.push(`- **WCAG 2.1:** ratio **${w.ratio.toFixed(2)}:1** — ` +
+      `normal text: ${w.levelNormal}, ` +
+      `large text: ${w.levelLarge}, ` +
+      `UI components: ${w.levelComponent}`);
+  }
+
+  if (result.apca) {
+    const a = result.apca;
+    parts.push(`- **APCA:** Lc **${a.lc.toFixed(1)}** — level: ${a.level}`);
+  }
+
+  return parts.join("\n");
 }

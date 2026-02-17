@@ -44,7 +44,12 @@ import {
   scaffoldSemanticsTool,
   auditSemanticsTool,
   analyzeCoverageTool,
+  checkContrastTool,
 } from "./tools/semantics.js";
+import {
+  generatePaletteTool,
+  mapPaletteToSemanticsTool,
+} from "./tools/palette.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -62,7 +67,7 @@ const config = loadConfig(PROJECT_ROOT);
 
 const server = new McpServer({
   name: "mcp-ds",
-  version: "0.3.0",
+  version: "0.4.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -493,6 +498,33 @@ server.tool(
       .enum(["flat", "nested"])
       .optional()
       .describe("Output format: 'flat' or 'nested' (W3C DT). Default: flat."),
+    outputDir: z
+      .string()
+      .optional()
+      .describe(
+        "Directory to write generated token files to (relative to project root). " +
+          "If omitted, tokens are returned inline without writing to disk.",
+      ),
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe(
+        "If true, show what would be written without actually writing files. Default: false.",
+      ),
+    mergeStrategy: z
+      .enum(["additive", "overwrite", "skip"])
+      .optional()
+      .describe(
+        "How to handle existing files: 'additive' (add new, keep existing), " +
+          "'overwrite', or 'skip'. Default: additive.",
+      ),
+    splitStrategy: z
+      .enum(["single", "by-context", "by-property"])
+      .optional()
+      .describe(
+        "How to split tokens across files: 'single' (one file), " +
+          "'by-context' (per UX context), 'by-property' (per property class). Default: by-context.",
+      ),
   },
   async (args) => {
     const { formatted } = await scaffoldSemanticsTool(
@@ -550,6 +582,165 @@ server.tool(
   },
   async (args) => {
     const { formatted } = await analyzeCoverageTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- check_contrast -------------------------------------------------------
+
+server.tool(
+  "check_contrast",
+  "Check color contrast ratios using WCAG 2.1 and/or APCA algorithms. " +
+    "Two modes: (1) provide explicit foreground + background colors, or " +
+    "(2) scan your token set for all foreground/background pairs and report failures.",
+  {
+    foreground: z
+      .string()
+      .optional()
+      .describe(
+        "Foreground color value (hex, rgb, hsl). If provided with 'background', checks that single pair.",
+      ),
+    background: z
+      .string()
+      .optional()
+      .describe(
+        "Background color value (hex, rgb, hsl). Required if 'foreground' is provided.",
+      ),
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "When scanning tokens, only check pairs under this path prefix. Comma-separated for multiple.",
+      ),
+    algorithm: z
+      .enum(["wcag21", "apca", "both"])
+      .optional()
+      .describe("Which algorithm(s) to use. Default: both."),
+    threshold: z
+      .string()
+      .optional()
+      .describe(
+        "Minimum WCAG contrast ratio to consider passing (e.g. '4.5' for AA normal text). " +
+          "Only affects which pairs are flagged in scan mode.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await checkContrastTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- generate_palette -----------------------------------------------------
+
+server.tool(
+  "generate_palette",
+  "Generate color palettes using pluggable strategies. " +
+    "Supports HSL ramp (built-in), Leonardo (optional), manual hex values, " +
+    "or importing from existing tokens. Returns tonal scales with contrast metadata.",
+  {
+    strategy: z
+      .enum(["hsl", "leonardo", "manual", "import"])
+      .optional()
+      .describe("Palette generation strategy. Default: hsl."),
+    scales: z
+      .string()
+      .describe(
+        "Scale definitions. Simple format: 'brand:220:0.7, neutral:0:0.05' (name:hue:saturation). " +
+          "Or full JSON: [{\"name\":\"brand\",\"hue\":220,\"saturation\":0.7}]",
+      ),
+    steps: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated step values, e.g. '0,100,200,...,900'. " +
+          "Default: 0,50,100,...,950 (19 steps).",
+      ),
+    colorSpace: z
+      .string()
+      .optional()
+      .describe("Color space for Leonardo strategy (e.g. 'CAM02', 'LAB'). Default: CAM02."),
+    smooth: z
+      .boolean()
+      .optional()
+      .describe("Enable smoothing for Leonardo strategy. Default: true."),
+  },
+  async (args) => {
+    const { formatted } = await generatePaletteTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- map_palette_to_semantics ---------------------------------------------
+
+server.tool(
+  "map_palette_to_semantics",
+  "Map generated palette scales to semantic tokens using configurable rules. " +
+    "Includes built-in presets for light-mode and dark-mode mappings. " +
+    "Can write output to disk with merge and split strategies.",
+  {
+    palette: z
+      .string()
+      .describe(
+        "The palette JSON from generate_palette (the 'palette' field from the result).",
+      ),
+    preset: z
+      .enum(["light-mode", "dark-mode"])
+      .optional()
+      .describe("Use a built-in mapping preset. Default: light-mode."),
+    rules: z
+      .string()
+      .optional()
+      .describe(
+        "Custom mapping rules as JSON array. Each rule: " +
+          "{\"propertyClass\":\"background\",\"intent\":\"accent\",\"paletteScale\":\"brand\",\"defaultStep\":500}",
+      ),
+    uxContexts: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated UX contexts to generate for, e.g. 'action,input,surface'. " +
+          "If omitted, generates only global (context-free) tokens.",
+      ),
+    states: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated additional states, e.g. 'hover,active,focus,disabled'.",
+      ),
+    outputDir: z
+      .string()
+      .optional()
+      .describe(
+        "Directory to write generated files to (relative to project root). " +
+          "If omitted, tokens are returned inline.",
+      ),
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe("Show what would be written without actually writing. Default: false."),
+    mergeStrategy: z
+      .enum(["additive", "overwrite", "skip"])
+      .optional()
+      .describe("How to handle existing files. Default: additive."),
+    splitStrategy: z
+      .enum(["single", "by-context", "by-property"])
+      .optional()
+      .describe("How to split tokens across files. Default: by-context."),
+  },
+  async (args) => {
+    const { formatted } = await mapPaletteToSemanticsTool(
       args,
       PROJECT_ROOT,
       config,
@@ -682,6 +873,55 @@ server.prompt(
               `   - Every background needs a paired text/icon for contrast\n` +
               `   - Interactive components need full state coverage\n` +
               `   - Don't over-engineer — start with minimum viable tokens`,
+          },
+        },
+      ],
+    };
+  },
+);
+
+server.prompt(
+  "design-color-palette",
+  "Guided workflow to generate a color palette and map it to semantic tokens. " +
+    "Walks through palette generation, preview, and semantic mapping with contrast checking.",
+  {
+    scales: z
+      .string()
+      .optional()
+      .describe(
+        "Color scales to generate, e.g. 'brand:220:0.7, neutral:0:0.05, success:140:0.6'",
+      ),
+    strategy: z
+      .string()
+      .optional()
+      .describe("Palette strategy: hsl, leonardo, manual, import"),
+  },
+  async (args) => {
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `I need help creating a color palette and mapping it to semantic tokens.\n\n` +
+              (args.scales
+                ? `My desired color scales: ${args.scales}\n`
+                : `I haven't specified color scales yet — please ask me about my brand colors.\n`) +
+              (args.strategy
+                ? `Strategy: ${args.strategy}\n`
+                : "") +
+              `\nPlease follow this workflow:\n\n` +
+              `1. Use generate_palette to create the tonal scales\n` +
+              `2. Review the generated palette for adequate contrast range\n` +
+              `3. Use map_palette_to_semantics with the 'light-mode' preset\n` +
+              `4. Use check_contrast to verify all generated pairs pass WCAG 2.1 AA\n` +
+              `5. Report:\n` +
+              `   - The full palette with contrast ratios\n` +
+              `   - Semantic token mapping summary\n` +
+              `   - Any contrast failures and how to fix them\n` +
+              `   - Recommendations for dark-mode mapping\n` +
+              `6. If I want to write files, use scaffold_semantics with outputDir`,
           },
         },
       ],

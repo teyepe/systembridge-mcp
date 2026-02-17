@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "mcp-ds": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/tasos.dervenagas/Documents/repos/mcp-ds",
+      "env": {
+        "MCP_DS_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/design-tokens"
+      }
+    }
+  }
+}

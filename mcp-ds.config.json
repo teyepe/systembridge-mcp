@@ -12,5 +12,76 @@
   "migration": {
     "updateCodePatterns": ["src/**/*.{css,scss,js,ts,jsx,tsx}"],
     "excludePaths": ["node_modules", "dist", "build"]
+  },
+  "theming": {
+    "dimensions": [
+      {
+        "id": "color-scheme",
+        "name": "Color Scheme",
+        "description": "Light and dark color modes",
+        "values": ["light", "dark"],
+        "defaultValue": "light",
+        "priority": 0,
+        "figmaCollection": "Color Scheme"
+      },
+      {
+        "id": "density",
+        "name": "Density",
+        "description": "Component spacing density",
+        "values": ["compact", "comfortable", "spacious"],
+        "defaultValue": "comfortable",
+        "priority": 1,
+        "figmaCollection": "Density"
+      }
+    ],
+    "themes": [
+      {
+        "id": "light",
+        "name": "Light",
+        "description": "Default light theme",
+        "coordinates": [{ "dimension": "color-scheme", "value": "light" }]
+      },
+      {
+        "id": "dark",
+        "name": "Dark",
+        "description": "Dark color scheme",
+        "coordinates": [{ "dimension": "color-scheme", "value": "dark" }]
+      },
+      {
+        "id": "dark-compact",
+        "name": "Dark Compact",
+        "description": "Dark theme with compact density",
+        "coordinates": [
+          { "dimension": "color-scheme", "value": "dark" },
+          { "dimension": "density", "value": "compact" }
+        ]
+      },
+      {
+        "id": "light-spacious",
+        "name": "Light Spacious",
+        "description": "Light theme with spacious density",
+        "coordinates": [
+          { "dimension": "color-scheme", "value": "light" },
+          { "dimension": "density", "value": "spacious" }
+        ]
+      }
+    ]
+  },
+  "brands": {
+    "defaultBrand": "acme",
+    "brands": [
+      {
+        "id": "acme",
+        "name": "Acme Corp",
+        "description": "Primary brand — Acme Corporation"
+      },
+      {
+        "id": "sub-brand",
+        "name": "Acme Lite",
+        "description": "Lightweight sub-brand for consumer products",
+        "tokenPaths": ["brands/acme-lite/**/*.json"],
+        "dimensionDefaults": { "density": "compact" }
+      }
+    ]
   }
 }

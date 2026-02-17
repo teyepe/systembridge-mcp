@@ -1,0 +1,97 @@
+{
+  "semantic": {
+    "density": {
+      "$description": "Density-responsive spacing — adjusts component sizing for compact/comfortable/spacious modes",
+
+      "component-padding-x": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.inset.md}",
+        "$description": "Horizontal component padding — default (comfortable)",
+        "$extensions": {
+          "com.mcp-ds.conditions": [
+            {
+              "when": [{ "dimension": "density", "value": "compact" }],
+              "value": "{semantic.spacing.inset.xs}"
+            },
+            {
+              "when": [{ "dimension": "density", "value": "spacious" }],
+              "value": "{semantic.spacing.inset.lg}"
+            }
+          ]
+        }
+      },
+
+      "component-padding-y": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.inset.sm}",
+        "$description": "Vertical component padding — default (comfortable)",
+        "$extensions": {
+          "com.mcp-ds.conditions": [
+            {
+              "when": [{ "dimension": "density", "value": "compact" }],
+              "value": "{spacing.1}"
+            },
+            {
+              "when": [{ "dimension": "density", "value": "spacious" }],
+              "value": "{semantic.spacing.inset.md}"
+            }
+          ]
+        }
+      },
+
+      "component-gap": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.inline.md}",
+        "$description": "Gap between sibling components",
+        "$extensions": {
+          "com.mcp-ds.conditions": [
+            {
+              "when": [{ "dimension": "density", "value": "compact" }],
+              "value": "{semantic.spacing.inline.xs}"
+            },
+            {
+              "when": [{ "dimension": "density", "value": "spacious" }],
+              "value": "{semantic.spacing.inline.lg}"
+            }
+          ]
+        }
+      },
+
+      "component-min-height": {
+        "$type": "dimension",
+        "$value": "2.5rem",
+        "$description": "Minimum interactive target height",
+        "$extensions": {
+          "com.mcp-ds.conditions": [
+            {
+              "when": [{ "dimension": "density", "value": "compact" }],
+              "value": "2rem"
+            },
+            {
+              "when": [{ "dimension": "density", "value": "spacious" }],
+              "value": "3rem"
+            }
+          ]
+        }
+      },
+
+      "section-gap": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.stack.lg}",
+        "$description": "Vertical gap between page sections",
+        "$extensions": {
+          "com.mcp-ds.conditions": [
+            {
+              "when": [{ "dimension": "density", "value": "compact" }],
+              "value": "{semantic.spacing.stack.md}"
+            },
+            {
+              "when": [{ "dimension": "density", "value": "spacious" }],
+              "value": "{semantic.spacing.stack.xl}"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

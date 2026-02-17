@@ -3,7 +3,8 @@
  * mcp-ds — Design System MCP Server
  *
  * A Model Context Protocol server for design token management,
- * transformation, validation, and evolution.
+ * transformation, validation, evolution, multi-dimensional theming,
+ * multi-brand support, and system generation.
  *
  * Transport: STDIO (compatible with Claude Desktop and other MCP clients).
  */
@@ -23,6 +24,21 @@ import {
 } from "./tools/search.js";
 import { validateTokensTool } from "./tools/validate.js";
 import { transformTokensTool } from "./tools/transform.js";
+import {
+  listDimensionsTool,
+  listThemesTool,
+  resolveThemeTool,
+  diffThemesTool,
+} from "./tools/themes.js";
+import {
+  listBrandsTool,
+  resolveBrandTool,
+  diffBrandsTool,
+} from "./tools/brands.js";
+import {
+  listTemplatesTool,
+  generateSystemTool,
+} from "./tools/factory.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -40,7 +56,7 @@ const config = loadConfig(PROJECT_ROOT);
 
 const server = new McpServer({
   name: "mcp-ds",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -222,6 +238,195 @@ server.tool(
         },
       ],
     };
+  },
+);
+
+// ---- list_dimensions ------------------------------------------------------
+
+server.tool(
+  "list_dimensions",
+  "List all variation dimensions (e.g. color-scheme, density) defined in your " +
+    "design-token theming config, with their allowed values and defaults.",
+  {},
+  async () => {
+    const { formatted } = listDimensionsTool(config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- list_themes ----------------------------------------------------------
+
+server.tool(
+  "list_themes",
+  "List all named themes defined in config. Each theme is a specific " +
+    "combination of dimension values (e.g. dark + compact).",
+  {},
+  async () => {
+    const { formatted } = listThemesTool(config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- resolve_theme --------------------------------------------------------
+
+server.tool(
+  "resolve_theme",
+  "Resolve the full set of design tokens for a specific theme (or " +
+    "arbitrary coordinate set). Shows how tokens change from the default.",
+  {
+    theme: z
+      .string()
+      .describe(
+        "Theme name from config, or inline coordinates like " +
+          "'color-scheme=dark,density=compact'",
+      ),
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe("Only return tokens matching this path prefix, e.g. 'color.semantic'"),
+    limit: z
+      .number()
+      .optional()
+      .describe("Max number of tokens to return (default 100)"),
+  },
+  async (args) => {
+    const { formatted } = await resolveThemeTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- diff_themes ----------------------------------------------------------
+
+server.tool(
+  "diff_themes",
+  "Compare two themes side-by-side and show which tokens differ, " +
+    "which are added, and which are removed.",
+  {
+    themeA: z.string().describe("First theme name or coordinates"),
+    themeB: z.string().describe("Second theme name or coordinates"),
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe("Only diff tokens matching this path prefix"),
+  },
+  async (args) => {
+    const { formatted } = await diffThemesTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- list_brands ----------------------------------------------------------
+
+server.tool(
+  "list_brands",
+  "List all brands defined in config, showing their token paths, " +
+    "token-set overrides, and dimension defaults.",
+  {},
+  async () => {
+    const { formatted } = listBrandsTool(config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- resolve_brand --------------------------------------------------------
+
+server.tool(
+  "resolve_brand",
+  "Resolve design tokens for a specific brand, optionally combined " +
+    "with a theme. Shows how brand overrides affect the token system.",
+  {
+    brand: z.string().describe("Brand ID from config"),
+    theme: z
+      .string()
+      .optional()
+      .describe("Optional theme name or coordinates to combine with the brand"),
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe("Only return tokens matching this path prefix"),
+    limit: z
+      .number()
+      .optional()
+      .describe("Max number of tokens to return (default 100)"),
+  },
+  async (args) => {
+    const { formatted } = await resolveBrandTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- diff_brands ----------------------------------------------------------
+
+server.tool(
+  "diff_brands",
+  "Compare two brands side-by-side, showing which tokens differ " +
+    "between them. Optionally resolves both under the same theme.",
+  {
+    brandA: z.string().describe("First brand ID"),
+    brandB: z.string().describe("Second brand ID"),
+    theme: z
+      .string()
+      .optional()
+      .describe("Optional theme to apply to both brands before diffing"),
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe("Only diff tokens matching this path prefix"),
+  },
+  async (args) => {
+    const { formatted } = await diffBrandsTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- list_templates -------------------------------------------------------
+
+server.tool(
+  "list_templates",
+  "List all available factory templates for generating new token systems. " +
+    "Shows required parameters and built-in algorithm options.",
+  {},
+  async () => {
+    const { formatted } = await listTemplatesTool(PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- generate_system ------------------------------------------------------
+
+server.tool(
+  "generate_system",
+  "Generate a new design-token system from a template. Supports color palettes, " +
+    "spacing scales, and full systems. Use dryRun=true to preview first.",
+  {
+    template: z.string().describe("Template ID, e.g. 'color-palette', 'spacing-scale', 'full-system'"),
+    params: z
+      .string()
+      .optional()
+      .describe(
+        "JSON string of template parameters, e.g. " +
+          "'{\"primaryColor\":\"#3B82F6\",\"steps\":11}'",
+      ),
+    outputDir: z
+      .string()
+      .optional()
+      .describe("Directory to write generated files (relative to project root)"),
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe("Preview mode — show generated tokens without writing files"),
+  },
+  async (args) => {
+    const parsedArgs = {
+      ...args,
+      params: args.params ? JSON.parse(args.params) : undefined,
+    };
+    const { formatted } = await generateSystemTool(
+      parsedArgs,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
   },
 );
 

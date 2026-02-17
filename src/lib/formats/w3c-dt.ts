@@ -3,7 +3,14 @@
  *
  * Spec: https://design-tokens.github.io/community-group/format/
  * Uses `$value`, `$type`, `$description` with `$` prefix convention.
- * Very close to Style Dictionary v4 but with stricter rules.
+ *
+ * Extended to parse `$extensions` structured metadata including:
+ *   - `com.mcp-ds.conditions` — conditional values for multi-dimensional theming
+ *   - `com.mcp-ds.brand-meta` — brand-specific metadata
+ *   - `com.mcp-ds.density`    — density-specific metadata
+ *   - `com.mcp-ds.factory`    — generation metadata for system templates
+ *   - `com.mcp-ds.deprecated` — structured deprecation info
+ *   - `com.mcp-ds.figma`      — Figma collection / variable mapping
  */
 import type {
   DesignToken,
@@ -19,6 +26,42 @@ function isTokenLeaf(obj: Record<string, unknown>): boolean {
   return "$value" in obj;
 }
 
+/**
+ * Extract deprecation info from `$extensions` or `$deprecated`.
+ */
+function extractDeprecation(
+  obj: Record<string, unknown>,
+  extensions?: Record<string, unknown>,
+): DesignToken["deprecated"] {
+  // Check $extensions.com.mcp-ds.deprecated first (richest)
+  const extDep = extensions?.["com.mcp-ds.deprecated"];
+  if (isPlainObject(extDep)) {
+    return {
+      message: (extDep["message"] as string) ?? "Deprecated",
+      alternative: extDep["alternative"] as string | undefined,
+      removeBy: extDep["removeBy"] as string | undefined,
+    };
+  }
+
+  // Then check $deprecated (W3C proposed)
+  const dep = obj["$deprecated"];
+  if (dep === true) {
+    return { message: "Deprecated" };
+  }
+  if (typeof dep === "string") {
+    return { message: dep };
+  }
+  if (isPlainObject(dep)) {
+    return {
+      message: (dep["message"] as string) ?? "Deprecated",
+      alternative: dep["alternative"] as string | undefined,
+      removeBy: dep["removeBy"] as string | undefined,
+    };
+  }
+
+  return undefined;
+}
+
 function flattenW3C(
   obj: Record<string, unknown>,
   parentPath: string[],
@@ -29,6 +72,10 @@ function flattenW3C(
   const localType = (obj["$type"] as TokenType | undefined) ?? inheritedType;
 
   if (isTokenLeaf(obj)) {
+    const extensions = isPlainObject(obj["$extensions"])
+      ? (obj["$extensions"] as Record<string, unknown>)
+      : undefined;
+
     const token: DesignToken = {
       path: parentPath.join("."),
       value: obj["$value"],
@@ -37,14 +84,26 @@ function flattenW3C(
       source: sourcePath,
       sourceFormat: "w3c-design-tokens",
     };
-    if (isPlainObject(obj["$extensions"])) {
-      token.extensions = obj["$extensions"] as Record<string, unknown>;
+
+    if (extensions) {
+      token.extensions = extensions;
     }
+
+    const deprecated = extractDeprecation(obj, extensions);
+    if (deprecated) {
+      token.deprecated = deprecated;
+    }
+
     tokens.push(token);
     return tokens;
   }
 
-  const metaKeys = new Set(["$type", "$description", "$extensions"]);
+  const metaKeys = new Set([
+    "$type",
+    "$description",
+    "$extensions",
+    "$deprecated",
+  ]);
   for (const [key, child] of Object.entries(obj)) {
     if (metaKeys.has(key)) continue;
     if (isPlainObject(child)) {

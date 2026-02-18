@@ -24,7 +24,6 @@ import {
   UX_CONTEXTS,
   findComponentContext,
   getComponentSurface,
-  type ComponentTokenSurface,
 } from "../semantics/ontology.js";
 
 // ---------------------------------------------------------------------------

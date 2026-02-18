@@ -13,34 +13,22 @@
  *                     get matched components, closest tokens, and coverage analysis.
  */
 
-import type { DesignToken, McpDsConfig, TokenMap } from "../lib/types.js";
+import type { McpDsConfig } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
 import {
   matchDescription,
   resolveTokenSurface,
   analyzeGaps,
   findClosestTokenColors,
-  classifyDistance,
-  COMMON_UI_PATTERNS,
-  getPatternsByCategory,
-  type MatchResult,
   type GapAnalysis,
   type ColorMatch,
 } from "../lib/designer/index.js";
 import {
-  ALL_PROPERTY_CLASSES,
-  SEMANTIC_INTENTS,
-  UX_CONTEXTS,
-  COMPONENT_TOKEN_SURFACES,
-  buildSemanticPath,
-  parseSemanticPath,
-  parseSemanticPathLenient,
   getComponentSurface,
   findComponentContext,
 } from "../lib/semantics/ontology.js";
 import {
   scaffoldSemanticTokens,
-  tokensToNestedJson,
   type ScaffoldOptions,
 } from "../lib/semantics/scaffold.js";
 import {
@@ -504,19 +492,20 @@ export async function auditDesignTool(
   // Suggested fixes
   lines.push("## Suggested Actions");
   lines.push("");
+  let step = 1;
   if (gaps.missing.length > 0) {
     lines.push(
-      `1. **Fill gaps**: Use \`scaffold_semantics\` with \`${componentList.join(", ")}\` to generate missing tokens`,
+      `${step++}. **Fill gaps**: Use \`scaffold_semantics\` with \`${componentList.join(", ")}\` to generate missing tokens`,
     );
   }
   if (auditResult.migration.length > 0) {
     lines.push(
-      `${gaps.missing.length > 0 ? "2" : "1"}. **Fix naming**: Rename ${auditResult.migration.length} token(s) for ontology compliance`,
+      `${step++}. **Fix naming**: Rename ${auditResult.migration.length} token(s) for ontology compliance`,
     );
   }
   if (auditResult.accessibility.wcagFailures > 0) {
     lines.push(
-      "3. **Fix contrast**: Use `check_contrast` to identify and fix failing color pairs",
+      `${step++}. **Fix contrast**: Use \`check_contrast\` to identify and fix failing color pairs`,
     );
   }
 
@@ -740,27 +729,24 @@ export async function analyzeUiTool(
   // Recommendations
   lines.push("## Recommendations");
   lines.push("");
+  let step = 1;
   if (unmatchedComponents.length > 0) {
     lines.push(
-      `1. **Register components**: Add token surfaces for ${unmatchedComponents.map((c) => c.name).join(", ")}`,
+      `${step++}. **Register components**: Add token surfaces for ${unmatchedComponents.map((c) => c.name).join(", ")}`,
     );
   }
   if (unmatchedColors.length > 0) {
     lines.push(
-      `${unmatchedComponents.length > 0 ? "2" : "1"}. **Extend palette**: Add missing colors or adjust existing palette to cover ${unmatchedColors.length} unmatched color(s)`,
+      `${step++}. **Extend palette**: Add missing colors or adjust existing palette to cover ${unmatchedColors.length} unmatched color(s)`,
     );
   }
   if (componentsCovered > 0) {
-    const stepNum =
-      (unmatchedComponents.length > 0 ? 1 : 0) +
-      (unmatchedColors.length > 0 ? 1 : 0) +
-      1;
     lines.push(
-      `${stepNum}. **Scaffold tokens**: Use \`scaffold_semantics\` with \`${componentList.join(", ")}\``,
+      `${step++}. **Scaffold tokens**: Use \`scaffold_semantics\` with \`${componentList.join(", ")}\``,
     );
   }
   lines.push(
-    `${((unmatchedComponents.length > 0 ? 1 : 0) + (unmatchedColors.length > 0 ? 1 : 0) + 2)}. **Audit**: Run \`audit_design\` with these components to check for completeness`,
+    `${step++}. **Audit**: Run \`audit_design\` with these components to check for completeness`,
   );
 
   return {

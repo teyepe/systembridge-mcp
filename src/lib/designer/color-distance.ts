@@ -1,14 +1,15 @@
 /**
  * Color Distance Utilities
  *
- * Provides CIE2000 (ΔE*₀₀) color distance calculation for matching
+ * Provides CIEDE2000 (ΔE*₀₀) color distance calculation for matching
  * described or extracted colors against the token system. Used by the
  * analyze_ui tool to find the closest token for a given color value.
  *
- * Uses colorjs.io (already a project dependency) for perceptual accuracy.
+ * Implements the Sharma–Wu–Dalal (2005) formula using pure math —
+ * no external color library required.
  */
 
-import type { DesignToken, TokenMap } from "../types.js";
+import type { TokenMap } from "../types.js";
 import { normalizeHex } from "../color/index.js";
 
 // ---------------------------------------------------------------------------

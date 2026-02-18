@@ -9,20 +9,12 @@
  * Also produces gap analysis when compared against existing tokens.
  */
 
-import type { DesignToken, TokenMap } from "../types.js";
+import type { TokenMap } from "../types.js";
 import {
-  COMPONENT_TOKEN_SURFACES,
-  ALL_PROPERTY_CLASSES,
-  SEMANTIC_INTENTS,
-  INTERACTION_STATES,
-  UX_CONTEXTS,
   getComponentSurface,
   findComponentContext,
-  parseSemanticPath,
   parseSemanticPathLenient,
   buildSemanticPath,
-  type ComponentTokenSurface,
-  type SemanticTokenName,
 } from "../semantics/ontology.js";
 
 // ---------------------------------------------------------------------------
@@ -156,6 +148,10 @@ export function analyzeGaps(
   const missing: TokenSlot[] = [];
   const matchedPaths = new Set<string>();
 
+  // Pre-build a parsed token index so we iterate the tokenMap only once
+  // instead of once per slot. Key = "propertyClass|uxContext|intent|state".
+  const parsedIndex = buildParsedTokenIndex(tokenMap);
+
   // Generate all required slots
   for (const ctx of surface.byContext) {
     for (const pc of ctx.propertyClasses) {
@@ -175,7 +171,7 @@ export function analyzeGaps(
           };
 
           // Check if a matching token exists
-          if (findMatchingToken(tokenMap, slot)) {
+          if (findMatchingToken(tokenMap, slot, parsedIndex)) {
             covered.push(slot);
             matchedPaths.add(slot.path);
           } else {
@@ -188,17 +184,12 @@ export function analyzeGaps(
 
   // Find extras: tokens that exist but aren't in the required slots
   const extras: string[] = [];
+  const relevantContexts = new Set(surface.byContext.map((ctx) => ctx.uxContext));
   for (const [path] of tokenMap) {
     if (!matchedPaths.has(path)) {
-      // Try lenient parsing to see if it relates to our contexts
       const parsed = parseSemanticPathLenient(path);
-      if (parsed) {
-        const isRelevantContext = surface.byContext.some(
-          (ctx) => ctx.uxContext === parsed.uxContext,
-        );
-        if (isRelevantContext) {
-          extras.push(path);
-        }
+      if (parsed?.uxContext && relevantContexts.has(parsed.uxContext)) {
+        extras.push(path);
       }
     }
   }
@@ -277,35 +268,43 @@ function ensureContext(
 }
 
 /**
- * Check if a token matching this slot exists in the map.
- * Tries exact path match first, then lenient matching.
+ * Build a pre-parsed index of all tokens for fast slot matching.
+ * Parses every token path once using lenient parsing and indexes by
+ * composite key "propertyClass|uxContext|intent|state".
  */
-function findMatchingToken(tokenMap: TokenMap, slot: TokenSlot): boolean {
+function buildParsedTokenIndex(tokenMap: TokenMap): Set<string> {
+  const index = new Set<string>();
+  for (const [path] of tokenMap) {
+    // Index exact path
+    index.add(path);
+
+    // Parse and index by semantic structure
+    const parsed = parseSemanticPathLenient(path);
+    if (parsed) {
+      const key = `${parsed.propertyClass}|${parsed.uxContext}|${parsed.intent}|${parsed.state ?? "default"}`;
+      index.add(`__parsed__${key}`);
+    }
+  }
+  return index;
+}
+
+/**
+ * Check if a token matching this slot exists in the map.
+ * Uses a pre-built parsed index to avoid O(n) scans per slot.
+ */
+function findMatchingToken(
+  tokenMap: TokenMap,
+  slot: TokenSlot,
+  parsedIndex: Set<string>,
+): boolean {
   // Exact match
   if (tokenMap.has(slot.path)) return true;
 
-  // Try common path variations
-  // Some systems use "color." prefix: color.background.action.accent
-  const withColorPrefix = `color.${slot.path}`;
-  if (tokenMap.has(withColorPrefix)) return true;
+  // Common prefix variations
+  if (tokenMap.has(`color.${slot.path}`)) return true;
+  if (tokenMap.has(`semantic.${slot.path}`)) return true;
 
-  // Some use "semantic." prefix
-  const withSemanticPrefix = `semantic.${slot.path}`;
-  if (tokenMap.has(withSemanticPrefix)) return true;
-
-  // Lenient: scan tokens for matching structure
-  for (const [path] of tokenMap) {
-    const parsed = parseSemanticPathLenient(path);
-    if (!parsed) continue;
-    if (
-      parsed.propertyClass === slot.propertyClass &&
-      parsed.uxContext === slot.uxContext &&
-      parsed.intent === slot.intent &&
-      (parsed.state ?? "default") === slot.state
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  // O(1) lookup against the pre-parsed index
+  const key = `__parsed__${slot.propertyClass}|${slot.uxContext}|${slot.intent}|${slot.state}`;
+  return parsedIndex.has(key);
 }

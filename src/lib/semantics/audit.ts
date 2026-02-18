@@ -25,8 +25,10 @@ import {
   EMPHASIS_MODIFIERS,
   COMPONENT_TOKEN_SURFACES,
   parseSemanticPath,
+  parseSemanticPathLenient,
   buildSemanticPath,
   type SemanticTokenName,
+  type LenientParseResult,
 } from "./ontology.js";
 import {
   evaluateScoping,
@@ -341,13 +343,20 @@ function analyzeAccessibility(
   const unpairedTokens: string[] = [];
 
   // Group semantic tokens by (uxContext, intent, state)
+  // Uses strict parsing first, then falls back to lenient/alias-aware parsing
+  // so tokens like "color.bg.primary" or "fg.accent" are still detected.
   const groups = new Map<
     string,
     { backgrounds: [string, DesignToken][]; foregrounds: [string, DesignToken][] }
   >();
 
   for (const [path, token] of tokens) {
-    const parsed = parseSemanticPath(path);
+    // Skip non-color tokens — only colors are relevant for contrast
+    if (token.type && token.type !== "color") continue;
+
+    // Try strict parse first, then lenient
+    const parsed: SemanticTokenName | null =
+      parseSemanticPath(path) ?? parseSemanticPathLenient(path);
     if (!parsed) continue;
 
     const key = [
@@ -516,6 +525,44 @@ function suggestMigrations(
     // Skip already-compliant tokens
     if (parseSemanticPath(path)) continue;
 
+    // Try lenient parser first — it uses the alias maps and is more precise
+    // than the regex heuristics below.
+    const lenient = parseSemanticPathLenient(path);
+    if (lenient && lenient.confidence >= 0.5) {
+      const suggested = buildSemanticPath({
+        propertyClass: lenient.propertyClass,
+        uxContext: lenient.uxContext,
+        intent: lenient.intent,
+        modifier: lenient.modifier,
+        state: lenient.state,
+      });
+
+      const reasons: string[] = [];
+      if (lenient.aliasesUsed.length > 0) {
+        for (const alias of lenient.aliasesUsed) {
+          reasons.push(`"${alias.original}" → "${alias.canonical}" (${alias.axis})`);
+        }
+      }
+      if (lenient.skippedPrefixes.length > 0) {
+        reasons.push(
+          `skipped namespace prefix(es): ${lenient.skippedPrefixes.join(".")}`,
+        );
+      }
+
+      suggestions.push({
+        originalPath: path,
+        suggestedPath: suggested,
+        confidence: lenient.confidence,
+        reason:
+          `Lenient parse (confidence ${(lenient.confidence * 100).toFixed(0)}%): ` +
+          (reasons.length > 0 ? reasons.join("; ") : "alias-aware match") +
+          ".",
+      });
+      continue;
+    }
+
+    // Fall back to regex-based heuristics for paths the lenient parser
+    // couldn't handle
     let propertyClass: string | undefined;
     let intent: string | undefined;
     let uxContext: string | undefined;

@@ -171,6 +171,198 @@ export const ALL_PROPERTY_CLASSES: PropertyClass[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Alias maps — common abbreviations & alternative naming conventions
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps common abbreviations, alternative names, and shorthand conventions
+ * to canonical property class IDs.
+ *
+ * Sources of inspiration:
+ * - VTEX Shoreline: $fg/$bg/$border
+ * - Backbase: foreground/on-background  
+ * - Material Design 3: on-surface, on-primary (container foreground)
+ * - Tailwind: text-*, bg-*, border-*, ring-*
+ * - Common shorthand: clr, colour, fill, stroke
+ */
+export const PROPERTY_CLASS_ALIASES: ReadonlyMap<string, string> = new Map([
+  // background
+  ["bg", "background"],
+  ["surface", "background"],
+  ["fill", "background"],
+  ["canvas", "background"],
+  ["container", "background"],
+  ["on-background", "text"],       // MD3: "on-background" = foreground text
+  ["on-surface", "text"],          // MD3: "on-surface" = surface foreground text
+  ["on-primary", "text"],          // MD3: "on-primary" = primary container fg
+  ["on-secondary", "text"],
+  ["on-error", "text"],
+  ["on-container", "text"],
+  // text / foreground
+  ["fg", "text"],
+  ["foreground", "text"],
+  ["label", "text"],
+  ["content", "text"],
+  ["heading", "text"],
+  ["body", "text"],
+  ["caption", "text"],
+  ["placeholder", "text"],
+  ["on", "text"],                  // Short form: color.accent.on → foreground on accent
+  // icon
+  ["glyph", "icon"],
+  ["svg", "icon"],
+  ["pictogram", "icon"],
+  // border
+  ["stroke", "border"],
+  ["divider", "border"],
+  ["separator", "border"],
+  ["rule", "border"],
+  // outline / focus
+  ["focus-ring", "outline"],
+  ["ring", "outline"],
+  ["focus", "outline"],
+  // shadow
+  ["elevation", "shadow"],
+  ["drop-shadow", "shadow"],
+  // spacing
+  ["padding", "spacing-inline"],
+  ["margin", "spacing-inline"],
+  ["space", "spacing-inline"],
+  ["inset", "spacing-inline"],
+  // sizing
+  ["size", "sizing"],
+  ["width", "sizing"],
+  ["height", "sizing"],
+  // radius
+  ["rounded", "radius"],
+  ["corner", "radius"],
+  ["border-radius", "radius"],
+]);
+
+/**
+ * Maps common intent aliases to canonical semantic intent IDs.
+ */
+export const INTENT_ALIASES: ReadonlyMap<string, string> = new Map([
+  ["primary", "accent"],
+  ["brand", "accent"],
+  ["main", "accent"],
+  ["secondary", "muted"],
+  ["subtle", "muted"],
+  ["tertiary", "muted"],
+  ["neutral", "base"],
+  ["default", "base"],
+  ["normal", "base"],
+  ["inverse", "inverted"],
+  ["reversed", "inverted"],
+  ["dark", "inverted"],
+  ["positive", "success"],
+  ["valid", "success"],
+  ["confirmed", "success"],
+  ["caution", "warning"],
+  ["alert", "warning"],
+  ["error", "danger"],
+  ["critical", "danger"],
+  ["destructive", "danger"],
+  ["negative", "danger"],
+  ["notice", "info"],
+  ["informational", "info"],
+  ["help", "info"],
+]);
+
+/**
+ * Maps common UX context aliases to canonical context IDs.
+ */
+export const UX_CONTEXT_ALIASES: ReadonlyMap<string, string> = new Map([
+  ["button", "action"],
+  ["btn", "action"],
+  ["cta", "action"],
+  ["link", "action"],
+  ["interactive", "action"],
+  ["form", "input"],
+  ["field", "input"],
+  ["control", "input"],
+  ["select", "input"],
+  ["card", "surface"],
+  ["modal", "surface"],
+  ["panel", "surface"],
+  ["page", "surface"],
+  ["dialog", "surface"],
+  ["popover", "surface"],
+  ["tooltip", "surface"],
+  ["alert", "feedback"],
+  ["toast", "feedback"],
+  ["notification", "feedback"],
+  ["banner", "feedback"],
+  ["message", "feedback"],
+  ["nav", "navigation"],
+  ["menu", "navigation"],
+  ["tab", "navigation"],
+  ["breadcrumb", "navigation"],
+  ["table", "data"],
+  ["list", "data"],
+  ["badge", "data"],
+  ["tag", "data"],
+  ["grid", "data"],
+]);
+
+/**
+ * Maps common state aliases to canonical interaction state IDs.
+ */
+export const STATE_ALIASES: ReadonlyMap<string, string> = new Map([
+  ["pressed", "active"],
+  ["clicked", "active"],
+  ["checked", "selected"],
+  ["chosen", "selected"],
+  ["on", "selected"],
+  ["inactive", "disabled"],
+  ["readonly", "disabled"],
+  ["focused", "focus"],
+  ["hovered", "hover"],
+]);
+
+// ---------------------------------------------------------------------------
+// Alias normalization helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a segment to a canonical property class ID.
+ * Returns the canonical ID if the segment matches a known alias or exact ID,
+ * or undefined if no match.
+ */
+export function normalizePropertyClass(segment: string): string | undefined {
+  const lower = segment.toLowerCase();
+  if (ALL_PROPERTY_CLASSES.some((p) => p.id === lower)) return lower;
+  return PROPERTY_CLASS_ALIASES.get(lower);
+}
+
+/**
+ * Normalize a segment to a canonical semantic intent ID.
+ */
+export function normalizeIntent(segment: string): string | undefined {
+  const lower = segment.toLowerCase();
+  if (SEMANTIC_INTENTS.some((i) => i.id === lower)) return lower;
+  return INTENT_ALIASES.get(lower);
+}
+
+/**
+ * Normalize a segment to a canonical UX context ID.
+ */
+export function normalizeUxContext(segment: string): string | undefined {
+  const lower = segment.toLowerCase();
+  if (UX_CONTEXTS.some((u) => u.id === lower)) return lower;
+  return UX_CONTEXT_ALIASES.get(lower);
+}
+
+/**
+ * Normalize a segment to a canonical interaction state ID.
+ */
+export function normalizeState(segment: string): string | undefined {
+  const lower = segment.toLowerCase();
+  if (INTERACTION_STATES.some((s) => s.id === lower)) return lower;
+  return STATE_ALIASES.get(lower);
+}
+
+// ---------------------------------------------------------------------------
 // Semantic intents — meaning axis
 // ---------------------------------------------------------------------------
 
@@ -613,6 +805,267 @@ export function parseSemanticPath(
   }
 
   return { propertyClass, uxContext, intent, modifier, state };
+}
+
+// ---------------------------------------------------------------------------
+// Lenient / fuzzy semantic path parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Extended result from lenient parsing, including confidence metadata.
+ */
+export interface LenientParseResult extends SemanticTokenName {
+  /** Confidence score 0-1: how sure we are about this interpretation. */
+  confidence: number;
+  /**
+   * Which alias mappings were used to reach this interpretation.
+   * Empty for strict-parse matches.
+   */
+  aliasesUsed: Array<{ original: string; canonical: string; axis: string }>;
+  /** The original segments that were skipped (namespace prefixes, etc.) */
+  skippedPrefixes: string[];
+}
+
+/**
+ * Attempt to infer a property-class role from a full token path by scanning
+ * ALL segments (not just the first) for property class matches or aliases.
+ *
+ * This is the "read between the lines" layer — it handles naming conventions
+ * like `color.bg.primary`, `semantic.color.fg.primary`, `brand.border.error`,
+ * etc., where the property-class signal is buried inside the path.
+ *
+ * Returns the canonical property class ID and the index where it was found,
+ * or undefined if no signal was detected.
+ */
+export function inferPropertyRole(
+  segments: string[],
+): { propertyClass: string; index: number } | undefined {
+  // First pass: exact ID match on any segment
+  for (let i = 0; i < segments.length; i++) {
+    const canonical = normalizePropertyClass(segments[i]);
+    if (canonical) return { propertyClass: canonical, index: i };
+  }
+  return undefined;
+}
+
+/**
+ * Lenient semantic path parser.
+ *
+ * Strategy:
+ * 1. Try strict `parseSemanticPath` first — if it works, return with confidence 1.0.
+ * 2. Try alias-aware first-segment matching (e.g. "fg" → "text").
+ * 3. Scan all segments for property-class signals, treating everything before
+ *    the signal as namespace prefixes (e.g. "semantic", "color", "palette").
+ * 4. After finding the property class, try to identify intent, context, state
+ *    using alias-aware matching on remaining segments.
+ *
+ * This lets the tool understand paths like:
+ *   - `color.bg.primary`           → background + accent (via "primary" alias)
+ *   - `color.fg.primary`           → text + accent
+ *   - `semantic.color.text.primary` → text + accent (skip "semantic", "color")
+ *   - `btn.bg.hover`               → background + action/base + hover
+ *   - `feedback.error.background`   → background + danger + feedback
+ */
+export function parseSemanticPathLenient(
+  path: string,
+): LenientParseResult | null {
+  // 1. Strict parse first
+  const strict = parseSemanticPath(path);
+  if (strict) {
+    return {
+      ...strict,
+      confidence: 1.0,
+      aliasesUsed: [],
+      skippedPrefixes: [],
+    };
+  }
+
+  const segments = path.split(".");
+  if (segments.length < 2) return null;
+
+  const aliasesUsed: LenientParseResult["aliasesUsed"] = [];
+
+  // 2. Try alias on first segment
+  const firstAlias = normalizePropertyClass(segments[0]);
+  if (firstAlias) {
+    aliasesUsed.push({
+      original: segments[0],
+      canonical: firstAlias,
+      axis: "propertyClass",
+    });
+    const remaining = segments.slice(1);
+    const parsed = parseRemainingSegments(remaining, firstAlias, aliasesUsed);
+    if (parsed) {
+      return {
+        ...parsed,
+        confidence: computeLenientConfidence(aliasesUsed, []),
+        aliasesUsed,
+        skippedPrefixes: [],
+      };
+    }
+  }
+
+  // 3. Scan all segments for property-class signals
+  const inferred = inferPropertyRole(segments);
+  if (inferred) {
+    const skippedPrefixes = segments.slice(0, inferred.index);
+    const originalSegment = segments[inferred.index];
+
+    // Track alias if it wasn't an exact match
+    if (originalSegment !== inferred.propertyClass) {
+      aliasesUsed.push({
+        original: originalSegment,
+        canonical: inferred.propertyClass,
+        axis: "propertyClass",
+      });
+    }
+
+    const remaining = segments.slice(inferred.index + 1);
+    const parsed = parseRemainingSegments(
+      remaining,
+      inferred.propertyClass,
+      aliasesUsed,
+    );
+    if (parsed) {
+      return {
+        ...parsed,
+        confidence: computeLenientConfidence(aliasesUsed, skippedPrefixes),
+        aliasesUsed,
+        skippedPrefixes,
+      };
+    }
+
+    // Even with no remaining segments, return what we have
+    // (e.g., a token that IS just a property class reference)
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * After finding the property class, parse the remaining segments for
+ * uxContext, intent, modifier, and state — using alias-aware matching.
+ */
+function parseRemainingSegments(
+  segments: string[],
+  propertyClass: string,
+  aliasesUsed: LenientParseResult["aliasesUsed"],
+): SemanticTokenName | null {
+  if (segments.length === 0) return null;
+
+  let idx = 0;
+
+  // Try uxContext (exact or alias)
+  let uxContext: string | undefined;
+  if (idx < segments.length) {
+    const ctx = normalizeUxContext(segments[idx]);
+    if (ctx) {
+      if (segments[idx] !== ctx) {
+        aliasesUsed.push({
+          original: segments[idx],
+          canonical: ctx,
+          axis: "uxContext",
+        });
+      }
+      uxContext = ctx;
+      idx++;
+    }
+  }
+
+  // Try intent (exact or alias)
+  let intent: string | undefined;
+  if (idx < segments.length) {
+    const int = normalizeIntent(segments[idx]);
+    if (int) {
+      if (segments[idx] !== int) {
+        aliasesUsed.push({
+          original: segments[idx],
+          canonical: int,
+          axis: "intent",
+        });
+      }
+      intent = int;
+      idx++;
+    }
+  }
+
+  // If no intent was found by alias, use the raw segment as an unknown intent
+  if (!intent && idx < segments.length) {
+    // Check if it's a state before assuming it's an intent
+    const maybeState = normalizeState(segments[idx]);
+    if (!maybeState) {
+      intent = segments[idx];
+      idx++;
+    }
+  }
+
+  // If we only found a uxContext but no intent, flip it
+  if (uxContext && !intent) {
+    const intentFromCtx = normalizeIntent(uxContext);
+    if (intentFromCtx) {
+      intent = intentFromCtx;
+      uxContext = undefined;
+    } else {
+      // Use uxContext as intent (best guess)
+      intent = uxContext;
+      uxContext = undefined;
+    }
+  }
+
+  if (!intent) return null;
+
+  // Try modifier
+  let modifier: string | undefined;
+  const modifierIds = new Set(EMPHASIS_MODIFIERS.map((m) => m.id));
+  if (idx < segments.length && modifierIds.has(segments[idx])) {
+    modifier = segments[idx];
+    idx++;
+  }
+
+  // Try state (exact or alias)
+  let state: string | undefined;
+  if (idx < segments.length) {
+    const st = normalizeState(segments[idx]);
+    if (st) {
+      if (segments[idx] !== st) {
+        aliasesUsed.push({
+          original: segments[idx],
+          canonical: st,
+          axis: "state",
+        });
+      }
+      state = st;
+      idx++;
+    }
+  }
+
+  return { propertyClass, uxContext, intent, modifier, state };
+}
+
+/**
+ * Compute a confidence score for lenient parsing based on how many
+ * aliases were used and how many prefixes were skipped.
+ */
+function computeLenientConfidence(
+  aliasesUsed: LenientParseResult["aliasesUsed"],
+  skippedPrefixes: string[],
+): number {
+  let confidence = 0.95;
+
+  // Each alias used reduces confidence slightly
+  confidence -= aliasesUsed.length * 0.05;
+
+  // Skipped namespace prefixes reduce confidence
+  confidence -= skippedPrefixes.length * 0.08;
+
+  // Property class aliases are more reliable than others
+  const nonPropertyAliases = aliasesUsed.filter(
+    (a) => a.axis !== "propertyClass",
+  ).length;
+  confidence -= nonPropertyAliases * 0.03;
+
+  return Math.max(0.3, Math.min(1.0, confidence));
 }
 
 // ---------------------------------------------------------------------------

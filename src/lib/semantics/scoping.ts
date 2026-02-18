@@ -14,6 +14,8 @@ import {
   INTERACTION_STATES,
   EMPHASIS_MODIFIERS,
   parseSemanticPath,
+  parseSemanticPathLenient,
+  normalizePropertyClass,
   type PropertyClass,
   type SemanticTokenName,
 } from "./ontology.js";
@@ -126,7 +128,7 @@ export const pairingRule: ScopingRule = {
     const violations: ScopingViolation[] = [];
     const parsed = new Map<string, SemanticTokenName>();
     for (const [path] of tokens) {
-      const p = parseSemanticPath(path);
+      const p = parseSemanticPath(path) ?? parseSemanticPathLenient(path);
       if (p) parsed.set(path, p);
     }
 
@@ -188,27 +190,34 @@ export const ambiguityRule: ScopingRule = {
       if (segments.length < 2) continue;
 
       // Check if the first segment (or first-two for compound) is a property class
-      const firstIsClass = propertyClassIds.has(segments[0]);
+      // Also check aliases (e.g. "bg" → "background", "fg" → "text")
+      const firstIsClass = propertyClassIds.has(segments[0]) || !!normalizePropertyClass(segments[0]);
       const firstTwoAreClass =
         segments.length > 1 &&
-        propertyClassIds.has(`${segments[0]}-${segments[1]}`);
+        (propertyClassIds.has(`${segments[0]}-${segments[1]}`) ||
+         !!normalizePropertyClass(`${segments[0]}-${segments[1]}`));
 
       if (!firstIsClass && !firstTwoAreClass) {
-        // Check if ANY segment is a known property class (misplaced)
-        const misplacedClass = segments.find((s) => propertyClassIds.has(s));
+        // Check if ANY segment is a known property class or alias (misplaced)
+        const misplacedClass = segments.find((s) =>
+          propertyClassIds.has(s) || !!normalizePropertyClass(s),
+        );
+        const canonicalMisplaced = misplacedClass
+          ? normalizePropertyClass(misplacedClass) ?? misplacedClass
+          : undefined;
 
         violations.push({
           ruleId: "ambiguous-name",
           severity: "warning",
-          message: misplacedClass
-            ? `Token "${path}" contains property class "${misplacedClass}" but not as ` +
+          message: canonicalMisplaced
+            ? `Token "${path}" contains property class "${canonicalMisplaced}" (from "${misplacedClass}") but not as ` +
               `the first segment. The property class should lead the name for cognitive clarity.`
             : `Token "${path}" does not start with a recognized property class ` +
               `(${[...propertyClassIds].slice(0, 5).join(", ")}, ...). ` +
               `This makes it ambiguous what CSS property this token targets.`,
           tokenPaths: [path],
-          suggestion: misplacedClass
-            ? `Restructure as "${misplacedClass}.${segments.filter((s) => s !== misplacedClass).join(".")}".`
+          suggestion: canonicalMisplaced
+            ? `Restructure as "${canonicalMisplaced}.${segments.filter((s) => s !== misplacedClass).join(".")}".`
             : `Prefix the token with a property class: "background.${path}", "text.${path}", or "border.${path}".`,
         });
       }

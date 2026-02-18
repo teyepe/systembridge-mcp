@@ -3,7 +3,7 @@
 > **Purpose:** This document enables LLMs and AI agents to understand, maintain, and extend the mcp-ds codebase autonomously. It provides deep architectural context, design rationale, and practical guidance for evolution.
 
 **Last Updated:** 2026-02-18  
-**Codebase Version:** 0.1.0  
+**Codebase Version:** 0.4.0  
 **Target Audience:** LLMs, AI agents, autonomous coding systems
 
 ---
@@ -32,7 +32,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  MCP Protocol Layer (src/index.ts)                          │
-│  • Tool registration (22 tools)                             │
+│  • Tool registration (28 tools)                             │
 │  • Prompt registration (6 prompts)                          │
 │  • Zod schema validation                                    │
 │  • McpServer from @modelcontextprotocol/sdk                 │
@@ -44,6 +44,7 @@
 │  • Search & validation: search_tokens, validate_tokens      │
 │  • Semantics: scaffold, audit, coverage, ontology           │
 │  • Colors: generate_palette, check_contrast                 │
+│  • Scales: analyze, generate, suggest, density, audit       │
 │  • Themes: list/resolve brands, themes, dimensions          │
 │  • Transform: transform_tokens, generate_system             │
 └────────────────────────┬────────────────────────────────────┘
@@ -55,6 +56,7 @@
 │  │ designer/          │ Pattern matching, gap analysis  │  │
 │  │ color/             │ WCAG, APCA, conversions         │  │
 │  │ palette/           │ HSL, Leonardo, mapping          │  │
+│  │ scales/            │ Generators, analyzers, knowledge│  │
 │  │ themes/            │ Multi-dimensional resolution    │  │
 │  │ factory/           │ System generation algorithms    │  │
 │  │ formats/           │ W3C, Tokens Studio, SD adapters │  │
@@ -127,6 +129,27 @@ mcp-ds/
 │   │   │   │   ├── manual.ts       # Manual palette input
 │   │   │   │   └── import.ts       # Import existing palettes
 │   │   │   └── index.ts
+│   │   ├── scales/
+│   │   │   ├── types.ts            # (407 lines) Scale type system
+│   │   │   ├── knowledge.ts        # (583 lines) Design principles DB
+│   │   │   ├── index.ts            # Barrel export
+│   │   │   ├── analyzers/
+│   │   │   │   ├── detector.ts     # Pattern detection
+│   │   │   │   ├── auditor.ts      # Principle comparison
+│   │   │   │   └── outliers.ts     # Outlier identification
+│   │   │   ├── generators/
+│   │   │   │   ├── linear.ts       # Linear scale generation
+│   │   │   │   ├── exponential.ts  # Exponential scale generation
+│   │   │   │   ├── modular.ts      # Modular scale generation
+│   │   │   │   ├── fibonacci.ts    # Fibonacci sequence
+│   │   │   │   ├── golden.ts       # Golden ratio scale
+│   │   │   │   ├── harmonic.ts     # Harmonic scale
+│   │   │   │   ├── fluid.ts        # CSS clamp() generation
+│   │   │   │   ├── hybrid.ts       # Hybrid scale (Tailwind-style)
+│   │   │   │   └── index.ts        # Generator orchestration
+│   │   │   └── transformers/
+│   │   │       ├── density.ts      # Density transformation
+│   │   │       └── scale.ts        # Scale operations
 │   │   ├── semantics/
 │   │   │   ├── ontology.ts         # (1350 lines) CORE KNOWLEDGE
 │   │   │   ├── scaffold.ts         # Token scaffolding from components
@@ -149,6 +172,7 @@ mcp-ds/
 │       ├── designer.ts             # Designer-centric tools (plan/audit/analyze)
 │       ├── factory.ts              # System generation tools
 │       ├── palette.ts              # Color palette tools
+│       ├── scales.ts               # (963 lines) Scale system tools
 │       ├── search.ts               # Token search tool
 │       ├── semantics.ts            # Semantic token tools
 │       ├── themes.ts               # Theme management tools
@@ -350,6 +374,395 @@ Adapters translate vendor formats → internal `DesignToken[]`.
 - ~100x speedup for gap analysis on large token sets
 - Scales to real-world token systems (5000+ tokens)
 - No change to API surface
+
+---
+
+## Scale System Architecture
+
+**Added in:** v0.4.0  
+**Location:** `src/lib/scales/`, `src/tools/scales.ts`  
+**Tools:** 6 new tools (analyze_scales, generate_scale, suggest_scale, derive_density_mode, audit_scale_compliance, generate_fluid_scale)
+
+### Purpose & Motivation
+
+Mathematical scales (spacing, typography, sizing) are foundational to consistent design systems, yet most systems lack algorithmic rigor. The scale system provides:
+
+1. **Research-validated scale generation** based on mathematical principles (musical ratios, golden ratio, Fibonacci)
+2. **Pattern detection** to understand existing token structures
+3. **Design theory knowledge** (Swiss typography, financial UI, Material Design, iOS HIG)
+4. **WCAG compliance** for accessibility (touch targets ≥44px, line-heights ≥1.5)
+5. **Responsive/fluid scales** with CSS clamp() generation
+
+### Three-Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MCP Tools Layer (src/tools/scales.ts - 963 lines)         │
+│  • analyze_scales      — Pattern detection & outlier ID    │
+│  • generate_scale      — Create scales from strategies     │
+│  • suggest_scale       — Principle-based recommendations   │
+│  • derive_density_mode — Transform spacing with WCAG       │
+│  • audit_scale_compliance — Validate against rules         │
+│  • generate_fluid_scale — CSS clamp() generation           │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Analyzers & Transformers (src/lib/scales/)                │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │ analyzers/                                           │  │
+│  │  • detector.ts (372 lines)  — Pattern detection     │  │
+│  │  • auditor.ts (371 lines)   — Principle comparison  │  │
+│  │  • outliers.ts (281 lines)  — Outlier identification│  │
+│  │ transformers/                                        │  │
+│  │  • density.ts (372 lines)   — Density transformation│  │
+│  │  • scale.ts (262 lines)     — Scale operations      │  │
+│  └──────────────────────────────────────────────────────┘  │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Generators & Knowledge Base (src/lib/scales/)             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │ types.ts (407 lines)        — Type system           │  │
+│  │ knowledge.ts (583 lines)    — Design principles DB  │  │
+│  │ generators/ (8 strategies, ~680 total lines)        │  │
+│  │  • linear.ts      — a(n) = base + n×step           │  │
+│  │  • exponential.ts — a(n) = base × 2^n              │  │
+│  │  • modular.ts     — a(n) = base × ratio^n          │  │
+│  │  • fibonacci.ts   — F(n) = F(n-1) + F(n-2)         │  │
+│  │  • golden.ts      — a(n) = base × φ^n (φ=1.618)    │  │
+│  │  • harmonic.ts    — a(n) = base / n                │  │
+│  │  • fluid.ts       — CSS clamp() generation          │  │
+│  │  • hybrid.ts      — Linear-then-exponential         │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Data Structures
+
+**ScaleStrategy** (union type):
+```typescript
+type ScaleStrategy = 
+  | "linear" | "exponential" | "modular" 
+  | "fibonacci" | "golden" | "harmonic" 
+  | "fluid" | "hybrid" | "custom";
+```
+
+**ScaleAnalysis** (pattern detection result):
+```typescript
+interface ScaleAnalysis {
+  strategy: ScaleStrategy;
+  confidence: number;  // 0-1
+  parameters?: {       // Consolidated parameters object
+    base?: number;
+    ratio?: number;
+    step?: number;
+    exponent?: number;
+  };
+  outliers?: Array<{
+    value: number;
+    expected?: number;
+    deviation?: number;
+    relativeDeviation?: number;
+    reason?: string;
+  }>;
+  metrics: {
+    ratios: { mean: number; variance: number };
+    steps: { mean: number; variance: number };
+  };
+}
+```
+
+**DensityTransformConfig** (transformation parameters):
+```typescript
+interface DensityTransformConfig {
+  sourceDensity?: "comfortable" | "compact" | "spacious";
+  targetDensity: "compact" | "spacious";
+  scaleFactor?: number;  // Override automatic calculation
+  constraints?: {
+    minValue?: number;
+    maxValue?: number;
+    preserveZero?: boolean;  // Don't transform zero values
+    roundTo?: "integer" | "half" | "quarter" | "none";
+  };
+  wcagCompliance?: boolean;  // Validate against WCAG rules
+}
+```
+
+### Knowledge Base
+
+**MUSICAL_RATIOS** (8 ratios from music theory):
+- Minor Second: 1.067 (16/15) — Tight, compact
+- Major Second: 1.125 (9/8) — Swiss typography standard
+- Minor Third: 1.2 (6/5) — Common UI spacing
+- Major Third: 1.25 (5/4) — Balanced
+- Perfect Fourth: 1.333 (4/3) — Traditional
+- Perfect Fifth: 1.5 (3/2) — Moderate contrast
+- Golden Ratio: 1.618 (φ) — Classical proportions
+- Major Sixth: 1.667 (5/3) — High contrast
+
+**DESIGN_PRINCIPLES** (7 design systems):
+Each principle includes:
+- `recommendedRatios`: `{ min, max }` range for scale ratios
+- `maxSteps`: Maximum hierarchy levels
+- `baseUnit`: Grid system base (e.g., 8dp, 8pt, 4px)
+- `minTouchTarget`: Minimum accessible touch size
+- `description`: Design philosophy
+
+Examples:
+- **Swiss Typography:** Ratios 1.125-1.2, max 7 steps, clarity-focused
+- **Financial UI:** Compact 1.067-1.125, precision and density
+- **Material Design:** 8dp base, 48dp touch targets
+- **iOS HIG:** 8pt base, 44pt touch targets
+
+**WCAG_COMPLIANCE_RULES** (4 validation rules):
+```typescript
+interface ComplianceRule {
+  id: string;
+  description: string;
+  validate: (value: number, context?: ComplianceContext) => ComplianceViolation | null;
+}
+```
+
+Rules:
+1. **touch-target-size:** Minimum 44px (WCAG 2.2 criterion 2.5.8)
+2. **line-height:** Minimum 1.5 for body text (WCAG 1.4.12)
+3. **grid-alignment-8dp:** Material Design 8dp grid
+4. **grid-alignment-8pt:** iOS 8pt grid
+
+### Generator Algorithm Pattern
+
+All generators follow this interface:
+```typescript
+async function generateScale(config: {
+  base: number;
+  steps: number;
+  strategy?: "linear" | "exponential" | ...;
+  ratio?: number;  // For modular scales
+  // ... strategy-specific parameters
+}): Promise<ScaleResult>
+```
+
+**Linear:** `a(n) = base + n × step`
+- Use case: Uniform spacing systems (e.g., 4, 8, 12, 16)
+- Parameters: `base`, `step`, `steps`
+
+**Exponential:** `a(n) = base × 2^n`
+- Use case: Doubling progressions (e.g., 4, 8, 16, 32)
+- Parameters: `base`, `steps`
+
+**Modular:** `a(n) = base × ratio^n`
+- Use case: Musical/typographic scales (e.g., 1.125, 1.2, 1.414, 1.618)
+- Parameters: `base`, `ratio`, `steps`
+
+**Fibonacci:** `F(n) = F(n-1) + F(n-2)`
+- Use case: Natural growth sequences (e.g., 8, 13, 21, 34)
+- Parameters: `f0`, `f1`, `steps`
+
+**Golden Ratio:** `a(n) = base × φ^n` where φ ≈ 1.618
+- Use case: Classical proportions
+- Parameters: `base`, `steps`
+
+**Harmonic:** `a(n) = base / n`
+- Use case: Decreasing intervals (e.g., 16, 8, 5.33, 4)
+- Parameters: `base`, `steps`
+
+**Fluid (CSS clamp()):** 
+```
+clamp(MIN, MIN + (MAX - MIN) × (100vw - MIN_VP) / (MAX_VP - MIN_VP), MAX)
+```
+- Use case: Viewport-responsive typography/spacing
+- Parameters: `minValue`, `maxValue`, `minViewport`, `maxViewport`, `steps`
+
+**Hybrid (Tailwind-style):** Linear-then-exponential
+- Use case: Practical UI scales with fine control at small sizes, larger jumps at large sizes
+- Parameters: `base`, `linearSteps`, `exponentialSteps`, `ratio`
+
+### Pattern Detection Algorithm
+
+**detector.ts** implements multi-strategy pattern recognition:
+
+1. **Ratio Analysis:** Calculate ratios between consecutive values
+   - Mean ratio, variance, coefficient of variation
+   - If consistent ratio → likely modular or geometric
+
+2. **Step Analysis:** Calculate differences between consecutive values
+   - Mean step, variance
+   - If consistent step → likely linear
+
+3. **Strategy-Specific Tests:**
+   - **Golden ratio:** Test if mean ratio ≈ 1.618 (tolerance ±0.05)
+   - **Fibonacci:** Test if F(n) = F(n-1) + F(n-2) holds
+   - **Exponential:** Test if ratio ≈ 2.0 consistently
+   - **Harmonic:** Test if values follow 1/n pattern
+
+4. **Confidence Scoring:**
+   - High confidence (>0.9): Clear pattern match
+   - Medium confidence (0.7-0.9): Likely match with minor deviations
+   - Low confidence (<0.7): Multiple possible strategies
+
+**Output:** `DetectionResult[]` sorted by confidence
+
+### Outlier Detection Algorithm
+
+**outliers.ts** implements strategy-aware outlier detection:
+
+1. **Generate expected scale** using detected strategy and base value
+2. **For each value in actual scale:**
+   - Calculate deviation: `abs(actual - expected)`
+   - Calculate relative deviation: `deviation / expected`
+   - If relative deviation > threshold (default 0.15 = 15%) → outlier
+3. **Return outliers** with:
+   - `value`: Actual value
+   - `expected`: Expected value from pure scale
+   - `deviation`: Absolute difference
+   - `relativeDeviation`: Percentage difference
+   - `reason`: Human-readable explanation
+
+### Density Transformation Algorithm
+
+**density.ts** implements WCAG-aware spacing transformation:
+
+1. **Determine scale factor:**
+   - Compact: 0.8× (20% reduction)
+   - Spacious: 1.25× (25% increase)
+   - Or use explicit `scaleFactor` from config
+
+2. **Transform each spacing token:**
+   ```typescript
+   let transformed = originalValue * scaleFactor;
+   ```
+
+3. **Apply constraints:**
+   - `preserveZero`: Skip transformation if value is 0
+   - `minValue` / `maxValue`: Clamp to range
+   - `roundTo`: Round to integer, half, quarter, or none
+
+4. **WCAG validation** (if enabled):
+   - For each transformed value, check against WCAG rules
+   - If value < 44px and used for touch targets → violation
+   - If line-height < 1.5 → violation
+   - Return violations array with messages
+
+5. **Output:** New token map with transformed values + violations
+
+### Integration with Existing Systems
+
+**Extends factory/algorithms.ts:**
+- `factory/generator.ts` now uses scale generators for spacing/typography
+- `ScaleStrategy` available alongside color generation strategies
+
+**Uses themes/dimensions.ts:**
+- Density dimension (`density: comfortable | compact | spacious`)
+- Scale system provides algorithmic transformation between modes
+
+**Outputs W3C DTCG format with extensions:**
+```json
+{
+  "spacing": {
+    "xs": {
+      "$type": "dimension",
+      "$value": "8px",
+      "com.mcp-ds.scale": {
+        "strategy": "modular",
+        "base": 4,
+        "ratio": 1.5,
+        "step": 0
+      },
+      "com.mcp-ds.conditions": {
+        "density": "comfortable"
+      }
+    }
+  }
+}
+```
+
+### Extension Guide
+
+**Add a new scale strategy:**
+
+1. Create `src/lib/scales/generators/mystrategy.ts`:
+   ```typescript
+   export async function generateMyStrategy(config: {
+     base: number;
+     steps: number;
+     customParam: number;
+   }): Promise<ScaleResult> {
+     const values: number[] = [];
+     for (let i = 0; i < config.steps; i++) {
+       values.push(/* your formula */);
+     }
+     return {
+       values,
+       strategy: "mystrategy",
+       parameters: { base: config.base, customParam: config.customParam },
+     };
+   }
+   ```
+
+2. Add to `ScaleStrategy` union in `types.ts`
+
+3. Add case in `generators/index.ts` switch statement
+
+4. Add detection logic in `analyzers/detector.ts`
+
+**Add a new design principle:**
+
+Add to `DESIGN_PRINCIPLES` array in `knowledge.ts`:
+```typescript
+{
+  name: "My Principle",
+  recommendedRatios: { min: 1.2, max: 1.4 },
+  maxSteps: 8,
+  baseUnit: 4,
+  minTouchTarget: 48,
+  description: "Philosophy and when to use"
+}
+```
+
+**Add a new compliance rule:**
+
+Add to `WCAG_COMPLIANCE_RULES` array in `knowledge.ts`:
+```typescript
+{
+  id: "my-rule",
+  description: "Rule description",
+  validate: (value: number, context?: ComplianceContext) => {
+    if (value < threshold) {
+      return {
+        severity: "error" as const,
+        message: `Value ${value} violates rule`,
+        suggestedFix: `Use minimum ${threshold}`,
+      };
+    }
+    return null;
+  }
+}
+```
+
+### Known TypeScript Patterns
+
+**Type-Safe Parameters:**
+- `ScaleAnalysis.parameters` is a consolidated optional object
+- Access with: `analysis.parameters?.base`, `analysis.parameters?.ratio`
+- Never access `analysis.base` or `analysis.ratio` directly
+
+**Union Type Guards:**
+- DESIGN_PRINCIPLES has union types (Swiss, Financial, Material, etc.)
+- Not all have same properties
+- Use: `if ('recommendedRatios' in principle && principle.recommendedRatios)`
+
+**ComplianceContext API:**
+- `validate()` takes `(value, context)` not `(value, key)`
+- Returns `ComplianceViolation | null`, not boolean
+- Access message: `violation.message`, not `rule.description`
+
+**MCP Return Types:**
+- Must use literal `"text"`: `return { type: "text" as const, text: ... }`
+- Not just `type: "text"`
+
+**Zod Schema Arity:**
+- `z.record()` needs two arguments: `z.record(z.string(), z.number())`
+- Not `z.record(z.number())`
 
 ---
 

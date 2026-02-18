@@ -68,7 +68,7 @@ npm run build
 
 3. Restart Claude Desktop
 
-4. Look for the 🔌 MCP icon — you should see **22 tools** available from mcp-ds
+4. Look for the 🔌 MCP icon — you should see **28 tools** available from mcp-ds
 
 ---
 
@@ -148,6 +148,38 @@ Smart semantic tokens based on CSS property classes, UX contexts, and intents:
 - **list_brands** / **resolve_brand** — Manage multiple brand identities
 - **list_themes** / **resolve_theme** — Theme resolution across dimensions (light/dark, density, etc.)
 - **diff_brands** / **diff_themes** — Compare token sets across configurations
+
+### **Mathematical Scale System**
+
+Research-validated scale generation, analysis, and transformation based on design theory:
+
+| Tool | What it does | Use case |
+|------|-------------|----------|
+| **analyze_scales** | Detects scale patterns, identifies outliers, compares against design principles | Understanding existing spacing/typography, finding inconsistencies |
+| **generate_scale** | Creates scales using 8 mathematical strategies (linear, exponential, modular, fibonacci, golden ratio, harmonic, fluid, hybrid) | Building new spacing systems, typography scales |
+| **suggest_scale** | Recommends scale strategies based on design principles (Swiss, Financial UI, Material, iOS, Tailwind) | Choosing the right scale for your brand |
+| **derive_density_mode** | Algorithmically transforms spacing tokens for compact/spacious modes with WCAG compliance | Creating responsive density variants |
+| **audit_scale_compliance** | Validates scales against WCAG, Material Design, iOS HIG rules (touch targets ≥44px, 8dp grid, line-heights ≥1.5) | Accessibility and platform compliance checks |
+| **generate_fluid_scale** | Generates CSS `clamp()` expressions for viewport-responsive scales | Fluid typography, responsive spacing |
+
+**Mathematical strategies:**
+- **Linear:** `a(n) = base + n × step` — Uniform intervals (e.g., 4, 8, 12, 16)
+- **Exponential:** `a(n) = base × 2^n` — Doubling progression (e.g., 4, 8, 16, 32)
+- **Modular:** `a(n) = base × ratio^n` — Musical/typographic ratios (e.g., 1.125, 1.2, 1.414, 1.618)
+- **Fibonacci:** `F(n) = F(n-1) + F(n-2)` — Natural growth sequence (e.g., 8, 13, 21, 34)
+- **Golden Ratio:** `a(n) = base × φ^n` where φ ≈ 1.618 — Classical proportions
+- **Harmonic:** `a(n) = base / n` — Decreasing intervals (e.g., 16, 8, 5.33, 4)
+- **Fluid:** CSS `clamp(min, preferred, max)` — Viewport-responsive scales
+- **Hybrid:** Linear-then-exponential (Tailwind-style) — Practical UI scales
+
+**Design principles database:**
+- **Swiss Typography:** Ratios 1.125-1.2, max 7 hierarchy steps, clarity-focused
+- **Financial UI:** Compact ratios 1.067-1.125 (minor second), precision and density
+- **Material Design:** 8dp base, 48dp touch targets, strict grid alignment
+- **iOS HIG:** 8pt base, 44pt touch targets, system fonts
+- **Tailwind CSS:** 4px base, hybrid linear-exponential (Tailwind scale)
+- **Bootstrap:** 1rem base, modular scale for spacing
+- **Minimalist:** Clean ratios, maximum whitespace
 
 ### **System Generation**
 

@@ -50,6 +50,11 @@ import {
   generatePaletteTool,
   mapPaletteToSemanticsTool,
 } from "./tools/palette.js";
+import {
+  planFlowTool,
+  auditDesignTool,
+  analyzeUiTool,
+} from "./tools/designer.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -750,6 +755,112 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tools — designer-centric intelligence
+// ---------------------------------------------------------------------------
+
+// ---- plan_flow ------------------------------------------------------------
+
+server.tool(
+  "plan_flow",
+  "Solve 'blank canvas syndrome' — describe a screen, feature, or user problem " +
+    "in plain language and get back suggested UI patterns, component inventories, " +
+    "token surface requirements, and next steps. Perfect for starting a new design " +
+    "or understanding what a feature needs from the design system.",
+  {
+    description: z
+      .string()
+      .describe(
+        "Natural language description of the screen, feature, or problem. " +
+          "e.g. 'I need a login page with social sign-in options' or " +
+          "'An admin dashboard to manage user accounts with data tables'",
+      ),
+    maxPatterns: z
+      .number()
+      .optional()
+      .describe("Maximum number of UI patterns to suggest (default: 5)"),
+    includeScaffold: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include a preview of how many tokens scaffold_semantics would generate. Default: false.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await planFlowTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- audit_design ---------------------------------------------------------
+
+server.tool(
+  "audit_design",
+  "Audit a partial or complete design against the design system. " +
+    "Provide the components used in your design and get a gap analysis: " +
+    "missing tokens, naming issues, accessibility problems, and concrete fixes. " +
+    "Use this before handoff to ensure design-system coverage.",
+  {
+    components: z
+      .string()
+      .describe(
+        "Comma-separated list of components in the design, " +
+          "e.g. 'button, text-input, card, modal, tabs'",
+      ),
+    description: z
+      .string()
+      .optional()
+      .describe("Optional description of the design being audited"),
+    checkAccessibility: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include accessibility contrast analysis. Default: true.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await auditDesignTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- analyze_ui -----------------------------------------------------------
+
+server.tool(
+  "analyze_ui",
+  "Analyze UI elements and colors against the design system. " +
+    "Describe the components you see and the colors used — get back which " +
+    "components are in the system, which colors match existing tokens " +
+    "(using perceptual color distance), and what gaps exist. " +
+    "Useful for reverse-engineering a screenshot or mockup into system terms.",
+  {
+    components: z
+      .string()
+      .describe(
+        "Comma-separated list of UI components visible, " +
+          "e.g. 'button, card, text-input, badge, avatar'",
+      ),
+    colors: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated hex colors observed in the UI, " +
+          "e.g. '#3B82F6, #EF4444, #F3F4F6, #1F2937'",
+      ),
+    description: z
+      .string()
+      .optional()
+      .describe(
+        "Optional description of the UI being analyzed, " +
+          "e.g. 'Dashboard with sidebar navigation and data cards'",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await analyzeUiTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Prompts — guided workflows
 // ---------------------------------------------------------------------------
 
@@ -922,6 +1033,94 @@ server.prompt(
               `   - Any contrast failures and how to fix them\n` +
               `   - Recommendations for dark-mode mapping\n` +
               `6. If I want to write files, use scaffold_semantics with outputDir`,
+          },
+        },
+      ],
+    };
+  },
+);
+
+server.prompt(
+  "design-from-scratch",
+  "Start a new design from a problem description. Identifies UI patterns, " +
+    "suggests components, resolves token requirements, and walks through " +
+    "scaffolding the complete token surface.",
+  {
+    description: z
+      .string()
+      .describe(
+        "Describe the screen, feature, or problem you want to design, " +
+          "e.g. 'A settings page where users manage their notification preferences'",
+      ),
+  },
+  async (args) => {
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `I'm starting a new design from scratch and need help planning it.\n\n` +
+              `**My description:** ${args.description}\n\n` +
+              `Please follow this workflow:\n\n` +
+              `1. Use plan_flow with my description to identify UI patterns and components\n` +
+              `2. Review the suggested patterns and component inventory\n` +
+              `3. Use scaffold_semantics with the identified components to generate tokens\n` +
+              `4. Use audit_semantics to check if my existing token system already covers some needs\n` +
+              `5. Use analyze_coverage to show the coverage matrix\n` +
+              `6. Provide a complete plan:\n` +
+              `   - Which UI patterns to follow\n` +
+              `   - Component list with token requirements\n` +
+              `   - Which tokens already exist vs need to be created\n` +
+              `   - Recommended color palette if no tokens exist yet\n` +
+              `   - Accessibility considerations\n` +
+              `   - Step-by-step implementation order`,
+          },
+        },
+      ],
+    };
+  },
+);
+
+server.prompt(
+  "design-handoff-review",
+  "Review a design before developer handoff. Audits component coverage, " +
+    "token completeness, naming compliance, and accessibility.",
+  {
+    components: z
+      .string()
+      .describe(
+        "Comma-separated components in the design, e.g. 'button, card, text-input, tabs, modal'",
+      ),
+    description: z
+      .string()
+      .optional()
+      .describe("Optional description of the design being reviewed"),
+  },
+  async (args) => {
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `I need to review a design before handing it off to developers.\n\n` +
+              `**Components in the design:** ${args.components}\n` +
+              (args.description ? `**Description:** ${args.description}\n` : "") +
+              `\nPlease follow this workflow:\n\n` +
+              `1. Use audit_design with the components to get a gap analysis\n` +
+              `2. Use check_contrast to verify all color pairs pass WCAG 2.1 AA\n` +
+              `3. Use analyze_coverage to see the full coverage matrix\n` +
+              `4. If there are gaps, use scaffold_semantics to generate missing tokens\n` +
+              `5. Provide a handoff-ready report:\n` +
+              `   - Overall design-system compliance score\n` +
+              `   - Missing tokens that need to be created\n` +
+              `   - Naming issues that need fixing\n` +
+              `   - Accessibility status (contrast, pairing)\n` +
+              `   - Files that need to be updated\n` +
+              `   - A checklist for the developer`,
           },
         },
       ],

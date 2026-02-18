@@ -55,6 +55,14 @@ import {
   auditDesignTool,
   analyzeUiTool,
 } from "./tools/designer.js";
+import {
+  analyzeScalesTool,
+  generateScaleTool,
+  suggestScaleTool,
+  deriveDensityModeTool,
+  auditScaleComplianceTool,
+  generateFluidScaleTool,
+} from "./tools/scales.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -857,6 +865,72 @@ server.tool(
   async (args) => {
     const { formatted } = await analyzeUiTool(args, PROJECT_ROOT, config);
     return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- analyze_scales -------------------------------------------------------
+
+server.tool(
+  analyzeScalesTool.name,
+  analyzeScalesTool.description,
+  analyzeScalesTool.inputSchema.shape,
+  async (args) => {
+    return await analyzeScalesTool.execute(args as any);
+  },
+);
+
+// ---- generate_scale -------------------------------------------------------
+
+server.tool(
+  generateScaleTool.name,
+  generateScaleTool.description,
+  generateScaleTool.inputSchema.shape,
+  async (args) => {
+    return await generateScaleTool.execute(args as any);
+  },
+);
+
+// ---- suggest_scale --------------------------------------------------------
+
+server.tool(
+  suggestScaleTool.name,
+  suggestScaleTool.description,
+  suggestScaleTool.inputSchema.shape,
+  async (args) => {
+    return await suggestScaleTool.execute(args as any);
+  },
+);
+
+// ---- derive_density_mode --------------------------------------------------
+
+server.tool(
+  deriveDensityModeTool.name,
+  deriveDensityModeTool.description,
+  deriveDensityModeTool.inputSchema.shape,
+  async (args) => {
+    return await deriveDensityModeTool.execute(args as any);
+  },
+);
+
+// ---- audit_scale_compliance -----------------------------------------------
+
+server.tool(
+  auditScaleComplianceTool.name,
+  auditScaleComplianceTool.description,
+  auditScaleComplianceTool.inputSchema.shape,
+  async (args) => {
+    return await auditScaleComplianceTool.execute(args as any);
+  },
+);
+
+// ---- generate_fluid_scale -------------------------------------------------
+
+server.tool(
+  generateFluidScaleTool.name,
+  generateFluidScaleTool.description,
+  generateFluidScaleTool.inputSchema.shape,
+  async (args) => {
+    return await generateFluidScaleTool.execute(args as any);
   },
 );
 

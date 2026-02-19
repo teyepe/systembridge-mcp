@@ -47,6 +47,7 @@ import {
   checkContrastTool,
   analyzeTopologyTool,
   generateRefactorScenariosTool,
+  executeMigrationTool,
 } from "./tools/semantics.js";
 import {
   generatePaletteTool,
@@ -759,6 +760,73 @@ server.tool(
       args.teamSize,
       args.hoursPerWeek,
     );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- execute_migration ----------------------------------------------------
+
+server.tool(
+  "execute_migration",
+  "Execute token migration with automated reference updates, validation, and rollback. " +
+    "Applies scenario phases to token system, updates references across codebase, " +
+    "validates integrity (no broken refs/circular deps), and checks accessibility. " +
+    "DEFAULTS TO DRY RUN for safety - set dryRun:false to apply changes. " +
+    "Creates snapshot before execution for rollback if needed.",
+  {
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "Only migrate tokens starting with this prefix. Useful for scoped migrations.",
+      ),
+    scenarioId: z
+      .string()
+      .optional()
+      .describe(
+        "Scenario ID to execute (from generate_refactor_scenarios). Default: uses conservative approach.",
+      ),
+    phaseNumber: z
+      .number()
+      .optional()
+      .describe(
+        "Execute only this phase number. Default: executes all phases in sequence.",
+      ),
+    dryRun: z
+      .boolean()
+      .optional()
+      .describe(
+        "Preview mode - shows what would change without applying. DEFAULT: true (safe mode).",
+      ),
+    createSnapshot: z
+      .boolean()
+      .optional()
+      .describe(
+        "Create snapshot before execution for rollback. Default: true.",
+      ),
+    stopOnError: z
+      .boolean()
+      .optional()
+      .describe(
+        "Stop execution on first error. Default: true.",
+      ),
+    skipValidation: z
+      .boolean()
+      .optional()
+      .describe(
+        "Skip post-execution validation checks. Default: false.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await executeMigrationTool({
+      pathPrefix: args.pathPrefix,
+      scenarioId: args.scenarioId,
+      phaseNumber: args.phaseNumber,
+      dryRun: args.dryRun,
+      createSnapshot: args.createSnapshot,
+      stopOnError: args.stopOnError,
+      skipValidation: args.skipValidation,
+    });
     return { content: [{ type: "text" as const, text: formatted }] };
   },
 );

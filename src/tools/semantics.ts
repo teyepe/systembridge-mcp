@@ -948,6 +948,268 @@ export async function generateRefactorScenariosTool(
 }
 
 // ---------------------------------------------------------------------------
+// execute_migration — Execute staged migration with validation
+// ---------------------------------------------------------------------------
+
+export async function executeMigrationTool(args: {
+  pathPrefix?: string;
+  scenarioId?: string;
+  phaseNumber?: number;
+  dryRun?: boolean;
+  createSnapshot?: boolean;
+  stopOnError?: boolean;
+  skipValidation?: boolean;
+}): Promise<{ formatted: string; json: any }> {
+  const lines: string[] = [];
+
+  // Load tokens
+  const { tokens, config } = await loadAllTokens(args.pathPrefix ?? "");
+  resolveReferences(tokens);
+
+  // Run audit
+  const audit = auditSemanticTokens(tokens);
+
+  // Assess risk
+  const riskProfile = assessMigrationRisk(
+    audit,
+    tokens,
+    { coverage: [], recommendations: [] }, // Placeholder
+  );
+
+  // Generate scenarios
+  const scenarios = generateMigrationScenarios(
+    tokens,
+    audit,
+    riskProfile,
+    { approaches: ["conservative", "progressive", "comprehensive"] },
+  );
+
+  // Find scenario
+  let scenario: MigrationScenario | undefined;
+  if (args.scenarioId) {
+    scenario = scenarios.find(s => s.id === args.scenarioId);
+  } else {
+    // Use first conservative scenario as default
+    scenario = scenarios.find(s => s.approach === "conservative") ?? scenarios[0];
+  }
+
+  if (!scenario) {
+    lines.push("# Error: No scenarios available");
+    return { formatted: lines.join("\n"), json: { error: "No scenarios available" } };
+  }
+
+  // Select phases to execute
+  const phasesToExecute = args.phaseNumber
+    ? scenario.phases.filter(p => p.phase === args.phaseNumber)
+    : scenario.phases;
+
+  if (phasesToExecute.length === 0) {
+    lines.push(`# Error: Phase ${args.phaseNumber} not found`);
+    return { formatted: lines.join("\n"), json: { error: "Phase not found" } };
+  }
+
+  // Import execution modules
+  const { executePhase, createSnapshot, rollback } = await import("../lib/migration/executor.js");
+  const { validateMigration, generateValidationReport } = await import("../lib/migration/validation.js");
+
+  lines.push(`# Migration Execution: ${scenario.name}`);
+  lines.push(``);
+
+  const dryRun = args.dryRun ?? true; // Default to dry run for safety
+  lines.push(`**Mode:** ${dryRun ? "🔍 DRY RUN (Preview)" : " ⚠️ LIVE EXECUTION"}`);
+  lines.push(`**Scenario:** ${scenario.id}`);
+  lines.push(`**Phases:** ${phasesToExecute.map(p => p.phase).join(", ")}`);
+  lines.push(``);
+
+  // Create snapshot if requested
+  let snapshot;
+  if (args.createSnapshot && !dryRun) {
+    snapshot = createSnapshot(tokens, {
+      description: `Before executing ${scenario.name}`,
+      phaseNumber: phasesToExecute[0].phase,
+      phaseName: phasesToExecute[0].name,
+    });
+    lines.push(`✅ Snapshot created: ${snapshot.id}`);
+    lines.push(``);
+  }
+
+  // Execute phases
+  const execution = {
+    id: `exec-${Date.now()}`,
+    timestamp: new Date(),
+    dryRun,
+    phases: [] as any[],
+    status: "running" as any,
+    summary: {
+      totalActions: 0,
+      completedActions: 0,
+      failedActions: 0,
+      tokensCreated: 0,
+      tokensUpdated: 0,
+      tokensDeleted: 0,
+      tokensRenamed: 0,
+      referencesUpdated: 0,
+      validationFailures: 0,
+    },
+    snapshot,
+  };
+
+  for (const phase of phasesToExecute) {
+    lines.push(`## Phase ${phase.phase}: ${phase.name}`);
+    lines.push(``);
+
+    const phaseExecution = await executePhase(tokens, phase, {
+      dryRun,
+      createSnapshot: args.createSnapshot,
+      validateEach: !args.skipValidation,
+      stopOnError: args.stopOnError ?? true,
+    });
+
+    execution.phases.push(phaseExecution);
+    execution.summary.totalActions += phaseExecution.actions.length;
+    execution.summary.completedActions += phaseExecution.actions.filter(a => a.status === "completed").length;
+    execution.summary.failedActions += phaseExecution.actions.filter(a => a.status === "failed").length;
+
+    // Report phase results
+    const statusIcon = phaseExecution.status === "completed" ? "✅" : phaseExecution.status === "failed" ? "❌" : "⏸️";
+    lines.push(`${statusIcon} **Status:** ${phaseExecution.status}`);
+    lines.push(`**Duration:** ${phaseExecution.duration}ms`);
+    lines.push(`**Actions:** ${phaseExecution.actions.length} (${phaseExecution.actions.filter(a => a.status === "completed").length} completed, ${phaseExecution.actions.filter(a => a.status === "failed").length} failed)`);
+    lines.push(``);
+
+    // Show actions
+    if (phaseExecution.actions.length > 0) {
+      lines.push(`### Actions`);
+      lines.push(``);
+
+      for (const action of phaseExecution.actions) {
+        const actionIcon = action.status === "completed" ? "✅" : action.status === "failed" ? "❌" : "⏸️";
+        lines.push(`${actionIcon} **${action.type}** (${action.targets.length} targets)`);
+
+        // Show operations
+        for (const op of action.operations.slice(0, 5)) { // Limit to first 5
+          const opIcon = op.success ? "  ✓" : "  ✗";
+          lines.push(`${opIcon} ${op.type}: \`${op.path}\`${op.newPath ? ` → \`${op.newPath}\`` : ""}`);
+          if (op.referencesUpdated.length > 0) {
+            lines.push(`     Updated ${op.referencesUpdated.length} reference(s)`);
+          }
+          if (op.error) {
+            lines.push(`     ❌ ${op.error}`);
+          }
+        }
+
+        if (action.operations.length > 5) {
+          lines.push(`  ... and ${action.operations.length - 5} more`);
+        }
+
+        // Show validation
+        if (action.validation.length > 0) {
+          const failed = action.validation.filter(v => !v.passed);
+          if (failed.length > 0) {
+            lines.push(`  ⚠️ Validation: ${failed.length} check(s) failed`);
+            execution.summary.validationFailures += failed.length;
+          }
+        }
+
+        lines.push(``);
+      }
+    }
+
+    // Count operations
+    for (const action of phaseExecution.actions) {
+      for (const op of action.operations) {
+        if (!op.success) continue;
+
+        switch (op.type) {
+          case "create":
+            execution.summary.tokensCreated++;
+            break;
+          case "update":
+            execution.summary.tokensUpdated++;
+            break;
+          case "delete":
+            execution.summary.tokensDeleted++;
+            break;
+          case "rename":
+            execution.summary.tokensRenamed++;
+            execution.summary.referencesUpdated += op.referencesUpdated.length;
+            break;
+        }
+      }
+    }
+
+    // Stop if phase failed and stopOnError
+    if (phaseExecution.status === "failed" && args.stopOnError) {
+      lines.push(`❌ Stopping execution due to phase failure`);
+      lines.push(``);
+      break;
+    }
+  }
+
+  // Overall status
+  const allCompleted = execution.phases.every(p => p.status === "completed");
+  const anyFailed = execution.phases.some(p => p.status === "failed");
+  execution.status = allCompleted ? "completed" : anyFailed ? "failed" : "pending";
+
+  lines.push(`## Summary`);
+  lines.push(``);
+  lines.push(`**Overall Status:** ${execution.status === "completed" ? "✅ Completed" : execution.status === "failed" ? "❌ Failed" : "⏸️ Incomplete"}`);
+  lines.push(``);
+  lines.push(`- Total actions: ${execution.summary.totalActions}`);
+  lines.push(`- Completed: ${execution.summary.completedActions}`);
+  lines.push(`- Failed: ${execution.summary.failedActions}`);
+  lines.push(``);
+  lines.push(`**Token Changes:**`);
+  lines.push(`- Created: ${execution.summary.tokensCreated}`);
+  lines.push(`- Updated: ${execution.summary.tokensUpdated}`);
+  lines.push(`- Deleted: ${execution.summary.tokensDeleted}`);
+  lines.push(`- Renamed: ${execution.summary.tokensRenamed}`);
+  lines.push(`- References updated: ${execution.summary.referencesUpdated}`);
+  lines.push(``);
+
+  if (execution.summary.validationFailures > 0) {
+    lines.push(`⚠️ **Validation failures:** ${execution.summary.validationFailures}`);
+    lines.push(``);
+  }
+
+  // Post-execution validation
+  if (!args.skipValidation && !dryRun) {
+    lines.push(`## Post-Execution Validation`);
+    lines.push(``);
+
+    const validationReport = await validateMigration(tokens, execution);
+    const reportText = generateValidationReport(validationReport);
+
+    lines.push(reportText);
+    lines.push(``);
+
+    // If validation failed, offer rollback
+    if (validationReport.status === "failed" && snapshot) {
+      lines.push(`❌ Validation failed. You can rollback using snapshot: ${snapshot.id}`);
+      lines.push(``);
+    }
+  }
+
+  // Dry run notice
+  if (dryRun) {
+    lines.push(`---`);
+    lines.push(``);
+    lines.push(`ℹ️ **This was a DRY RUN.** No changes were applied.`);
+    lines.push(`To execute for real, set \`dryRun: false\`.`);
+    lines.push(``);
+  }
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      execution,
+      scenario,
+      phases: phasesToExecute,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
 

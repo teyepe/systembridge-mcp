@@ -53,6 +53,10 @@ export interface SemanticAuditResult {
   scoping: ScopingReport;
   /** Accessibility surface analysis */
   accessibility: AccessibilityAnalysis;
+  /** Dependency graph analysis */
+  dependencies: DependencyGraph;
+  /** Anti-pattern detection */
+  antiPatterns: AntiPatternReport;
   /** Migration suggestions for non-compliant tokens */
   migration: MigrationSuggestion[];
   /** Summary text */
@@ -162,6 +166,103 @@ export interface MigrationSuggestion {
   reason: string;
 }
 
+// ---- Dependency Graph ----
+
+export interface DependencyGraph {
+  /** All nodes in the dependency graph */
+  nodes: DependencyNode[];
+  /** All edges (references) in the graph */
+  edges: DependencyEdge[];
+  /** Summary metrics */
+  metrics: DependencyMetrics;
+  /** Issues detected in the dependency structure */
+  issues: DependencyIssue[];
+}
+
+export interface DependencyNode {
+  /** Token path */
+  path: string;
+  /** Token type (primitive, semantic, or unknown) */
+  nodeType: "primitive" | "semantic" | "unknown";
+  /** Number of tokens this token references */
+  outgoingRefs: number;
+  /** Number of tokens that reference this token */
+  incomingRefs: number;
+  /** Maximum depth from a primitive (0 for primitives, 1+ for semantic) */
+  depth: number;
+  /** Whether this token is isolated (not referenced and doesn't reference) */
+  isolated: boolean;
+}
+
+export interface DependencyEdge {
+  /** Source token path (the one containing the reference) */
+  from: string;
+  /** Target token path (the referenced token) */
+  to: string;
+  /** Whether the reference could be resolved */
+  resolved: boolean;
+}
+
+export interface DependencyMetrics {
+  /** Total tokens analyzed */
+  totalTokens: number;
+  /** Tokens that are primitives (no references to other tokens) */
+  primitiveCount: number;
+  /** Tokens that reference other tokens */
+  semanticCount: number;
+  /** Maximum reference chain depth found */
+  maxDepth: number;
+  /** Average depth across all tokens */
+  avgDepth: number;
+  /** Tokens with no incoming or outgoing references */
+  isolatedCount: number;
+  /** Total number of reference relationships */
+  totalEdges: number;
+}
+
+export interface DependencyIssue {
+  /** Issue severity */
+  severity: "error" | "warning" | "info";
+  /** Issue type */
+  type: "circular" | "unresolved" | "deep-chain" | "orphaned";
+  /** Description of the issue */
+  message: string;
+  /** Tokens involved */
+  tokenPaths: string[];
+}
+
+// ---- Anti-Patterns ----
+
+export interface AntiPatternReport {
+  /** All anti-patterns detected */
+  patterns: AntiPattern[];
+  /** Summary metrics */
+  summary: {
+    total: number;
+    byType: Record<string, number>;
+    bySeverity: Record<string, number>;
+  };
+}
+
+export interface AntiPattern {
+  /** Anti-pattern type */
+  type:
+    | "primitive-leakage"
+    | "naming-inconsistency"
+    | "redundant-tokens"
+    | "semantic-drift"
+    | "missing-variants"
+    | "over-nesting";
+  /** Severity level */
+  severity: "error" | "warning" | "info";
+  /** Description */
+  message: string;
+  /** Affected token paths */
+  tokenPaths: string[];
+  /** Suggestion for resolution */
+  suggestion?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Audit engine
 // ---------------------------------------------------------------------------
@@ -201,11 +302,13 @@ export function auditSemanticTokens(
     : undefined;
   const scoping = generateScopingReport(evaluateScoping(tokenSet, ruleIds));
   const accessibility = analyzeAccessibility(tokenSet);
+  const dependencies = analyzeDependencies(tokenSet);
+  const antiPatterns = analyzeAntiPatterns(tokenSet);
   const migration = suggestMigrations(tokenSet);
 
-  const healthScore = computeHealthScore(structure, coverage, scoping, accessibility);
+  const healthScore = computeHealthScore(structure, coverage, scoping, accessibility, dependencies, antiPatterns);
 
-  const summary = buildSummary(healthScore, structure, coverage, scoping, accessibility, migration);
+  const summary = buildSummary(healthScore, structure, coverage, scoping, accessibility, dependencies, antiPatterns, migration);
 
   return {
     healthScore,
@@ -213,6 +316,8 @@ export function auditSemanticTokens(
     coverage,
     scoping,
     accessibility,
+    dependencies,
+    antiPatterns,
     migration,
     summary,
   };
@@ -638,6 +743,441 @@ function suggestMigrations(
 }
 
 // ---------------------------------------------------------------------------
+// Dependency graph analysis
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a dependency graph from token references and analyze structure.
+ * Detects circular references, deep chains, orphaned tokens, and unresolved references.
+ */
+function analyzeDependencies(
+  tokens: Map<string, DesignToken>,
+): DependencyGraph {
+  const nodes: DependencyNode[] = [];
+  const edges: DependencyEdge[] = [];
+  const issues: DependencyIssue[] = [];
+
+  // Build adjacency lists
+  const outgoing = new Map<string, Set<string>>();
+  const incoming = new Map<string, Set<string>>();
+
+  // First pass: identify all references
+  for (const [path, token] of tokens) {
+    const refs = extractReferences(token.value);
+    
+    if (!outgoing.has(path)) {
+      outgoing.set(path, new Set());
+    }
+    
+    for (const ref of refs) {
+      outgoing.get(path)!.add(ref);
+      
+      if (!incoming.has(ref)) {
+        incoming.set(ref, new Set());
+      }
+      incoming.get(ref)!.add(path);
+      
+      // Check if reference resolves
+      const resolved = tokens.has(ref);
+      edges.push({ from: path, to: ref, resolved });
+      
+      if (!resolved) {
+        issues.push({
+          severity: "error",
+          type: "unresolved",
+          message: `Token "${path}" references non-existent token "${ref}"`,
+          tokenPaths: [path, ref],
+        });
+      }
+    }
+  }
+
+  // Second pass: compute depths and detect issues
+  const depths = new Map<string, number>();
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  function computeDepth(path: string, chain: string[] = []): number {
+    if (depths.has(path)) return depths.get(path)!;
+    
+    // Circular reference detection
+    if (visiting.has(path)) {
+      const cycle = [...chain, path];
+      issues.push({
+        severity: "error",
+        type: "circular",
+        message: `Circular reference detected: ${cycle.join(" → ")}`,
+        tokenPaths: cycle,
+      });
+      return 0; // Break cycle
+    }
+    
+    visiting.add(path);
+    const refs = outgoing.get(path);
+    
+    if (!refs || refs.size === 0) {
+      // Primitive token (no outgoing references)
+      depths.set(path, 0);
+      visiting.delete(path);
+      visited.add(path);
+      return 0;
+    }
+    
+    // Compute max depth from dependencies
+    let maxDepth = 0;
+    for (const ref of refs) {
+      if (tokens.has(ref)) {
+        const refDepth = computeDepth(ref, [...chain, path]);
+        maxDepth = Math.max(maxDepth, refDepth + 1);
+      }
+    }
+    
+    // Check for deep chains (> 3 levels)
+    if (maxDepth > 3) {
+      issues.push({
+        severity: "warning",
+        type: "deep-chain",
+        message: `Token "${path}" has reference chain depth of ${maxDepth} (consider flattening)`,
+        tokenPaths: [path],
+      });
+    }
+    
+    depths.set(path, maxDepth);
+    visiting.delete(path);
+    visited.add(path);
+    return maxDepth;
+  }
+
+  // Compute depths for all tokens
+  for (const path of tokens.keys()) {
+    if (!depths.has(path)) {
+      computeDepth(path);
+    }
+  }
+
+  // Third pass: build nodes and detect isolated tokens
+  for (const [path] of tokens) {
+    const outRefs = outgoing.get(path)?.size ?? 0;
+    const inRefs = incoming.get(path)?.size ?? 0;
+    const depth = depths.get(path) ?? 0;
+    const isolated = outRefs === 0 && inRefs === 0;
+    
+    const nodeType: "primitive" | "semantic" | "unknown" =
+      outRefs === 0 ? "primitive" : depth > 0 ? "semantic" : "unknown";
+    
+    nodes.push({
+      path,
+      nodeType,
+      outgoingRefs: outRefs,
+      incomingRefs: inRefs,
+      depth,
+      isolated,
+    });
+    
+    if (isolated && tokens.size > 10) { // Only flag in larger sets
+      issues.push({
+        severity: "info",
+        type: "orphaned",
+        message: `Token "${path}" is isolated (not referenced and doesn't reference others)`,
+        tokenPaths: [path],
+      });
+    }
+  }
+
+  // Compute metrics
+  const primitiveCount = nodes.filter((n) => n.nodeType === "primitive").length;
+  const semanticCount = nodes.filter((n) => n.nodeType === "semantic").length;
+  const isolatedCount = nodes.filter((n) => n.isolated).length;
+  const depthValues = Array.from(depths.values());
+  const maxDepth = depthValues.length > 0 ? Math.max(...depthValues) : 0;
+  const avgDepth = depthValues.length > 0
+    ? depthValues.reduce((a, b) => a + b, 0) / depthValues.length
+    : 0;
+
+  const metrics: DependencyMetrics = {
+    totalTokens: tokens.size,
+    primitiveCount,
+    semanticCount,
+    maxDepth,
+    avgDepth,
+    isolatedCount,
+    totalEdges: edges.length,
+  };
+
+  return { nodes, edges, metrics, issues };
+}
+
+/**
+ * Extract token reference paths from a value (handles {token.path} syntax)
+ */
+function extractReferences(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  
+  const refs: string[] = [];
+  const refPattern = /\{([^}]+)\}/g;
+  let match;
+  
+  while ((match = refPattern.exec(value)) !== null) {
+    refs.push(match[1]);
+  }
+  
+  return refs;
+}
+
+// ---------------------------------------------------------------------------
+// Anti-pattern detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect common anti-patterns in token sets
+ */
+function analyzeAntiPatterns(
+  tokens: Map<string, DesignToken>,
+): AntiPatternReport {
+  const patterns: AntiPattern[] = [];
+
+  // 1. Primitive leakage: Direct color/dimension values in semantic tokens
+  const primitiveLeakage = detectPrimitiveLeakage(tokens);
+  patterns.push(...primitiveLeakage);
+
+  // 2. Naming inconsistency: Similar tokens with different naming conventions
+  const namingIssues = detectNamingInconsistency(tokens);
+  patterns.push(...namingIssues);
+
+  // 3. Redundant tokens: Different paths, identical resolved values
+  const redundant = detectRedundantTokens(tokens);
+  patterns.push(...redundant);
+
+  // 4. Semantic drift: Tokens with similar names but divergent values
+  const drift = detectSemanticDrift(tokens);
+  patterns.push(...drift);
+
+  // 5. Missing variants: Incomplete state/modifier coverage
+  const missingVariants = detectMissingVariants(tokens);
+  patterns.push(...missingVariants);
+
+  // Compute summary
+  const byType: Record<string, number> = {};
+  const bySeverity: Record<string, number> = {};
+  
+  for (const pattern of patterns) {
+    byType[pattern.type] = (byType[pattern.type] ?? 0) + 1;
+    bySeverity[pattern.severity] = (bySeverity[pattern.severity] ?? 0) + 1;
+  }
+
+  return {
+    patterns,
+    summary: {
+      total: patterns.length,
+      byType,
+      bySeverity,
+    },
+  };
+}
+
+function detectPrimitiveLeakage(tokens: Map<string, DesignToken>): AntiPattern[] {
+  const patterns: AntiPattern[] = [];
+  
+  for (const [path, token] of tokens) {
+    const parsed = parseSemanticPath(path);
+    if (!parsed) continue; // Skip non-semantic tokens
+    
+    // Check if this semantic token has a direct value (no references)
+    const value = String(token.resolvedValue ?? token.value);
+    const hasReferences = /\{[^}]+\}/.test(String(token.value));
+    
+    // Flag color values in semantic tokens
+    if (!hasReferences && /^#[0-9a-f]{6}$/i.test(value)) {
+      patterns.push({
+        type: "primitive-leakage",
+        severity: "warning",
+        message: `Semantic token "${path}" uses direct color value "${value}" (should reference primitive)`,
+        tokenPaths: [path],
+        suggestion: `Create a primitive color token and reference it, e.g., {core.color.blue.500}`,
+      });
+    }
+  }
+  
+  return patterns;
+}
+
+function detectNamingInconsistency(tokens: Map<string, DesignToken>): AntiPattern[] {
+  const patterns: AntiPattern[] = [];
+  const tokenPaths = Array.from(tokens.keys());
+  
+  // Group by property class to find naming inconsistencies
+  const byPropertyClass = new Map<string, string[]>();
+  
+  for (const path of tokenPaths) {
+    const parsed = parseSemanticPath(path);
+    if (!parsed) continue;
+    
+    if (!byPropertyClass.has(parsed.propertyClass)) {
+      byPropertyClass.set(parsed.propertyClass, []);
+    }
+    byPropertyClass.get(parsed.propertyClass)!.push(path);
+  }
+  
+  // Check for mixed naming patterns within same property class
+  for (const [propertyClass, paths] of byPropertyClass) {
+    if (paths.length < 2) continue;
+    
+    // Check for "background.primary" vs "primary.background" inconsistency
+    const separatorPattern = /([.-])/;
+    const segments = paths.map(p => p.split(separatorPattern));
+    const separators = segments.map(s => s.filter(seg => separatorPattern.test(seg)));
+    
+    // Check if mixing different separators
+    const uniqueSeps = new Set(separators.flat());
+    if (uniqueSeps.size > 1) {
+       patterns.push({
+        type: "naming-inconsistency",
+        severity: "info",
+        message: `Property class "${propertyClass}" mixes different separators (${Array.from(uniqueSeps).join(", ")})`,
+        tokenPaths: paths.slice(0, 5), // Show first 5 examples
+        suggestion: `Standardize on a single separator (recommend ".")`,
+      });
+    }
+  }
+  
+  return patterns;
+}
+
+function detectRedundantTokens(tokens: Map<string, DesignToken>): AntiPattern[] {
+  const patterns: AntiPattern[] = [];
+  const valueGroups = new Map<string, string[]>();
+  
+  // Group tokens by resolved value
+  for (const [path, token] of tokens) {
+    const value = String(token.resolvedValue ?? token.value);
+    if (!valueGroups.has(value)) {
+      valueGroups.set(value, []);
+    }
+    valueGroups.get(value)!.push(path);
+  }
+  
+  // Flag groups with multiple tokens
+  for (const [value, paths] of valueGroups) {
+    if (paths.length > 1 && value !== "undefined") {
+      // Check if these are legitimately different contexts or truly redundant
+      const parsed = paths.map(p => parseSemanticPath(p)).filter(Boolean);
+      
+      // If they're all the same property class and intent, likely redundant
+      if (parsed.length > 1) {
+        const propertyClasses = new Set(parsed.map(p => p!.propertyClass));
+        const intents = new Set(parsed.map(p => p!.intent));
+        
+        if (propertyClasses.size === 1 && intents.size === 1) {
+          patterns.push({
+            type: "redundant-tokens",
+            severity: "info",
+            message: `${paths.length} tokens share identical value "${value}"`,
+            tokenPaths: paths,
+            suggestion: `Consider consolidating to a single token`,
+          });
+        }
+      }
+    }
+  }
+  
+  return patterns;
+}
+
+function detectSemanticDrift(tokens: Map<string, DesignToken>): AntiPattern[] {
+  const patterns: AntiPattern[] = [];
+  
+  // Look for tokens with "primary", "accent", etc. in the name that have different hues
+  const semanticGroups: Record<string, Array<{ path: string; value: string }>> = {
+    primary: [],
+    accent: [],
+    danger: [],
+    success: [],
+  };
+  
+  for (const [path, token] of tokens) {
+    const lower = path.toLowerCase();
+    for (const semantic of Object.keys(semanticGroups)) {
+      if (lower.includes(semantic)) {
+        semanticGroups[semantic].push({
+          path,
+          value: String(token.resolvedValue ?? token.value),
+        });
+      }
+    }
+  }
+  
+  // Check for divergent values within same semantic group
+  for (const [semantic, group] of Object.entries(semanticGroups)) {
+    if (group.length < 2) continue;
+    
+    // Extract color hues (very basic check)
+    const hexValues = group
+      .map(g => ({ ...g, hex: g.value.match(/#([0-9a-f]{6})/i)?.[1] }))
+      .filter(g => g.hex);
+    
+    if (hexValues.length >= 2) {
+      // Check if first two hex digits (red channel) vary significantly
+      const hues = hexValues.map(({ hex }) => parseInt(hex!.substring(0, 2), 16));
+      const maxDiff = Math.max(...hues) - Math.min(...hues);
+      
+      if (maxDiff > 50) { // Arbitrary threshold
+        patterns.push({
+          type: "semantic-drift",
+          severity: "warning",
+          message: `Tokens with "${semantic}" in name have divergent color values`,
+          tokenPaths: hexValues.map(h => h.path),
+          suggestion: `Ensure all "${semantic}" tokens derive from the same base color`,
+        });
+      }
+    }
+  }
+  
+  return patterns;
+}
+
+function detectMissingVariants(tokens: Map<string, DesignToken>): AntiPattern[] {
+  const patterns: AntiPattern[] = [];
+  
+  // Group by property class + context + intent
+  const groups = new Map<string, { paths: string[]; states: Set<string> }>();
+  
+  for (const [path] of tokens) {
+    const parsed = parseSemanticPath(path);
+    if (!parsed) continue;
+    
+    const key = `${parsed.propertyClass}::${parsed.uxContext ?? "_global"}::${parsed.intent}`;
+    if (!groups.has(key)) {
+      groups.set(key, { paths: [], states: new Set() });
+    }
+    
+    const group = groups.get(key)!;
+    group.paths.push(path);
+    group.states.add(parsed.state ?? "default");
+  }
+  
+  // Check for incomplete interactive state coverage
+  const expectedStates = new Set(["default", "hover", "active", "focus", "disabled"]);
+  
+  for (const [key, group] of groups) {
+    if (group.paths.length === 1 && group.states.has("hover")) {
+      // Has hover but might be missing other states
+      const missing = Array.from(expectedStates).filter(s => !group.states.has(s));
+      if (missing.length > 0 && missing.includes("default")) {
+        patterns.push({
+          type: "missing-variants",
+          severity: "warning",
+          message: `Token group "${key}" has some interactive states but missing: ${missing.join(", ")}`,
+          tokenPaths: group.paths,
+          suggestion: `Add missing interactive states for complete UI coverage`,
+        });
+      }
+    }
+  }
+  
+  return patterns;
+}
+
+// ---------------------------------------------------------------------------
 // Health score
 // ---------------------------------------------------------------------------
 
@@ -645,37 +1185,53 @@ function computeHealthScore(
   structure: StructureAnalysis,
   coverage: CoverageAnalysis,
   scoping: ScopingReport,
-  accessibility?: AccessibilityAnalysis,
+  accessibility: AccessibilityAnalysis,
+  dependencies: DependencyGraph,
+  antiPatterns: AntiPatternReport,
 ): number {
-  // Weighted components:
-  // - Naming compliance: 25%
-  // - Coverage score: 20%
-  // - Scoping errors: 25% (penalize hard for errors)
-  // - Scoping warnings: 10% (gentler penalty)
-  // - Contrast compliance: 20% (weighted by computable pairs)
+  // Weighted components (adjusted to include new analyses):
+  // - Naming compliance: 20%
+  // - Coverage score: 15%
+  // - Scoping errors: 20% (penalize hard for errors)
+  // - Scoping warnings: 8% (gentler penalty)
+  // - Contrast compliance: 15%
+  // - Dependency health: 12%
+  // - Anti-pattern score: 10%
 
   const complianceScore = structure.complianceRate * 100;
   const coverageScore = coverage.coverageScore * 100;
 
-  // Error penalty: each error removes up to 5 points (max 25 point loss)
-  const errorPenalty = Math.min(scoping.errors * 5, 25);
-  const scopingErrorScore = 100 - (errorPenalty / 25) * 100;
+  // Error penalty: each error removes up to 5 points (max 20 point loss)
+  const errorPenalty = Math.min(scoping.errors * 5, 20);
+  const scopingErrorScore = 100 - (errorPenalty / 20) * 100;
 
-  // Warning penalty: each warning removes 2 points (max 10 point loss)
-  const warningPenalty = Math.min(scoping.warnings * 2, 10);
-  const scopingWarningScore = 100 - (warningPenalty / 10) * 100;
+  // Warning penalty: each warning removes 2 points (max 8 point loss)
+  const warningPenalty = Math.min(scoping.warnings * 2, 8);
+  const scopingWarningScore = 100 - (warningPenalty / 8) * 100;
 
-  // Contrast score: ratio of passing pairs (fallback to 100 if no computable pairs)
-  const contrastScore = accessibility
-    ? accessibility.contrastScore * 100
-    : 100;
+  // Contrast score: ratio of passing pairs
+  const contrastScore = accessibility.contrastScore * 100;
+
+  // Dependency score: penalize for errors and warnings
+  const depErrors = dependencies.issues.filter(i => i.severity === "error").length;
+  const depWarnings = dependencies.issues.filter(i => i.severity === "warning").length;
+  const depPenalty = Math.min(depErrors * 20 + depWarnings * 5, 100);
+  const dependencyScore = 100 - depPenalty;
+
+  // Anti-pattern score: penalize based on severity
+  const apErrors = antiPatterns.summary.bySeverity.error ?? 0;
+  const apWarnings = antiPatterns.summary.bySeverity.warning ?? 0;
+  const apPenalty = Math.min(apErrors * 15 + apWarnings * 5, 100);
+  const antiPatternScore = 100 - apPenalty;
 
   return Math.round(
-    complianceScore * 0.25 +
-    coverageScore * 0.2 +
-    scopingErrorScore * 0.25 +
-    scopingWarningScore * 0.1 +
-    contrastScore * 0.2,
+    complianceScore * 0.20 +
+    coverageScore * 0.15 +
+    scopingErrorScore * 0.20 +
+    scopingWarningScore * 0.08 +
+    contrastScore * 0.15 +
+    dependencyScore * 0.12 +
+    antiPatternScore * 0.10,
   );
 }
 
@@ -689,6 +1245,8 @@ function buildSummary(
   coverage: CoverageAnalysis,
   scoping: ScopingReport,
   accessibility: AccessibilityAnalysis,
+  dependencies: DependencyGraph,
+  antiPatterns: AntiPatternReport,
   migration: MigrationSuggestion[],
 ): string {
   const lines: string[] = [];
@@ -785,6 +1343,60 @@ function buildSummary(
     lines.push(
       `- ⚠️ ${accessibility.unpairedTokens.length} token(s) without a matching pair`,
     );
+  }
+  lines.push("");
+
+  // Dependencies
+  lines.push(`### Dependency Graph`);
+  lines.push(
+    `- ${dependencies.metrics.primitiveCount} primitive tokens, ${dependencies.metrics.semanticCount} semantic tokens`,
+  );
+  lines.push(
+    `- Reference depth: max ${dependencies.metrics.maxDepth}, avg ${dependencies.metrics.avgDepth.toFixed(1)}`,
+  );
+  if (dependencies.metrics.isolatedCount > 0) {
+    lines.push(
+      `- ${dependencies.metrics.isolatedCount} isolated token(s) (not referenced)`,
+    );
+  }
+  
+  const depErrors = dependencies.issues.filter(i => i.severity === "error");
+  const depWarnings = dependencies.issues.filter(i => i.severity === "warning");
+  
+  if (depErrors.length > 0) {
+    lines.push(`- ❌ ${depErrors.length} error(s): ${depErrors.map(i => i.type).join(", ")}`);
+  }
+  if (depWarnings.length > 0) {
+    lines.push(`- ⚠️ ${depWarnings.length} warning(s): ${depWarnings.map(i => i.type).join(", ")}`);
+  }
+  if (depErrors.length === 0 && depWarnings.length === 0) {
+    lines.push("- ✅ No dependency issues detected");
+  }
+  lines.push("");
+
+  // Anti-Patterns
+  lines.push(`### Anti-Patterns`);
+  if (antiPatterns.summary.total === 0) {
+    lines.push("- ✅ No anti-patterns detected");
+  } else {
+    lines.push(`- ${antiPatterns.summary.total} pattern(s) detected`);
+    
+    const apErrors = antiPatterns.summary.bySeverity.error ?? 0;
+    const apWarnings = antiPatterns.summary.bySeverity.warning ?? 0;
+    const apInfo = antiPatterns.summary.bySeverity.info ?? 0;
+    
+    if (apErrors > 0) lines.push(`  - ❌ ${apErrors} error(s)`);
+    if (apWarnings > 0) lines.push(`  - ⚠️ ${apWarnings} warning(s)`);
+    if (apInfo > 0) lines.push(`  - ℹ️ ${apInfo} info`);
+    
+    // Show top pattern types
+    const topTypes = Object.entries(antiPatterns.summary.byType)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    
+    if (topTypes.length > 0) {
+      lines.push(`  - Most common: ${topTypes.map(([type, count]) => `${type} (${count})`).join(", ")}`);
+    }
   }
   lines.push("");
 

@@ -7,6 +7,7 @@
  *   - audit_semantics:       Audit an existing token set for structural issues
  *   - analyze_coverage:      Show the coverage matrix for the token set
  *   - check_contrast:        Check contrast ratios for foreground/background pairs
+ *   - analyze_topology:      Analyze token topology (dependencies, anti-patterns, structure)
  */
 import type { DesignToken, McpDsConfig } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
@@ -45,6 +46,13 @@ import {
   type SplitStrategy,
   type MergeStrategy,
 } from "../lib/io/writer.js";
+import {
+  generateTopologyReport,
+  visualizeDependencyGraph,
+  visualizeCoverageMatrix,
+  visualizeTokenDistribution,
+  visualizeAntiPatterns,
+} from "../lib/semantics/visualization.js";
 
 // ---------------------------------------------------------------------------
 // describe_ontology — explain the naming model
@@ -568,4 +576,194 @@ function formatContrastResult(result: ContrastResult): string {
   }
 
   return parts.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// analyze_topology — comprehensive topology analysis
+// ---------------------------------------------------------------------------
+
+export async function analyzeTopologyTool(
+  args: {
+    pathPrefix?: string;
+    includeGraph?: boolean;
+    includeDistribution?: boolean;
+    includeAntiPatterns?: boolean;
+    graphMaxNodes?: number;
+    graphMaxDepth?: number;
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<{ formatted: string; json: unknown }> {
+  // Load existing tokens
+  const tokenMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(tokenMap);
+
+  const pathPrefixes = args.pathPrefix
+    ? args.pathPrefix.split(",").map((p) => p.trim())
+    : undefined;
+
+  // Run audit to get all analyses
+  const audit = auditSemanticTokens(tokenMap, { pathPrefixes });
+
+  const includeGraph = args.includeGraph ?? true;
+  const includeDistribution = args.includeDistribution ?? true;
+  const includeAntiPatterns = args.includeAntiPatterns ?? true;
+
+  // Build formatted output
+  const lines: string[] = [];
+
+  lines.push("# Token Topology Analysis");
+  lines.push("");
+  lines.push("## Overview");
+  lines.push("");
+  lines.push(`- **Total Tokens**: ${audit.structure.totalTokens}`);
+  lines.push(`- **Primitives**: ${audit.dependencies.metrics.primitiveCount}`);
+  lines.push(`- **Semantic Tokens**: ${audit.dependencies.metrics.semanticCount}`);
+  lines.push(`- **Isolated**: ${audit.dependencies.metrics.isolatedCount}`);
+  lines.push(`- **Max Depth**: ${audit.dependencies.metrics.maxDepth}`);
+  lines.push(`- **Avg Depth**: ${audit.dependencies.metrics.avgDepth.toFixed(2)}`);
+  lines.push(`- **Total References**: ${audit.dependencies.metrics.totalEdges}`);
+  lines.push("");
+
+  // Dependency issues
+  if (audit.dependencies.issues.length > 0) {
+    lines.push("## Dependency Issues");
+    lines.push("");
+
+    const errors = audit.dependencies.issues.filter(i => i.severity === "error");
+    const warnings = audit.dependencies.issues.filter(i => i.severity === "warning");
+    const info = audit.dependencies.issues.filter(i => i.severity === "info");
+
+    if (errors.length > 0) {
+      lines.push(`### ❌ Errors (${errors.length})`);
+      lines.push("");
+      for (const issue of errors.slice(0, 10)) {
+        lines.push(`- **${issue.type}**: ${issue.message}`);
+        if (issue.tokenPaths.length <= 5) {
+          lines.push(`  - Tokens: ${issue.tokenPaths.map(p => `\`${p}\``).join(", ")}`);
+        }
+      }
+      if (errors.length > 10) {
+        lines.push(`  - _... and ${errors.length - 10} more errors_`);
+      }
+      lines.push("");
+    }
+
+    if (warnings.length > 0) {
+      lines.push(`### ⚠️ Warnings (${warnings.length})`);
+      lines.push("");
+      for (const issue of warnings.slice(0, 10)) {
+        lines.push(`- **${issue.type}**: ${issue.message}`);
+        if (issue.tokenPaths.length <= 3) {
+          lines.push(`  - Tokens: ${issue.tokenPaths.map(p => `\`${p}\``).join(", ")}`);
+        }
+      }
+      if (warnings.length > 10) {
+        lines.push(`  - _... and ${warnings.length - 10} more warnings_`);
+      }
+      lines.push("");
+    }
+
+    if (info.length > 5) {
+      lines.push(`### ℹ️ Info: ${info.length} isolated tokens (not shown for brevity)`);
+      lines.push("");
+    }
+  } else {
+    lines.push("## Dependency Issues");
+    lines.push("");
+    lines.push("✅ No dependency issues detected!");
+    lines.push("");
+  }
+
+  // Token distribution
+  if (includeDistribution) {
+    lines.push(visualizeTokenDistribution(audit.structure));
+    lines.push("");
+  }
+
+  // Coverage matrix
+  lines.push(visualizeCoverageMatrix(audit.coverage, { showCounts: true }));
+  lines.push("");
+
+  // Dependency graph
+  if (includeGraph) {
+    lines.push("## Dependency Graph");
+    lines.push("");
+    const graphMaxNodes = args.graphMaxNodes ?? 40;
+    const graphMaxDepth = args.graphMaxDepth ?? 3;
+    lines.push(visualizeDependencyGraph(audit.dependencies, {
+      maxNodes: graphMaxNodes,
+      maxDepth: graphMaxDepth,
+    }));
+    lines.push("");
+  }
+
+  // Anti-patterns
+  if (includeAntiPatterns && audit.antiPatterns.summary.total > 0) {
+    lines.push(visualizeAntiPatterns(audit.antiPatterns, { maxPerType: 5 }));
+    lines.push("");
+  }
+
+  // Recommendations
+  lines.push("## Recommendations");
+  lines.push("");
+
+  const recs: string[] = [];
+
+  if (audit.dependencies.issues.filter(i => i.type === "unresolved").length > 0) {
+    recs.push("- **Fix unresolved references** to ensure token integrity");
+  }
+
+  if (audit.dependencies.issues.filter(i => i.type === "circular").length > 0) {
+    recs.push("- **Break circular dependencies** by introducing intermediate tokens");
+  }
+
+  if (audit.dependencies.issues.filter(i => i.type === "deep-chain").length > 0) {
+    recs.push("- **Flatten deep reference chains** (>3 levels) for better maintainability");
+  }
+
+  if (audit.dependencies.metrics.isolatedCount > audit.structure.totalTokens * 0.1) {
+    recs.push("- **Review isolated tokens** - consider removing unused tokens or referencing them");
+  }
+
+  if (audit.antiPatterns.summary.bySeverity.error ?? 0 > 0) {
+    recs.push("- **Address anti-pattern errors** to improve token quality");
+  }
+
+  if (audit.coverage.coverageScore < 0.7) {
+    recs.push("- **Improve coverage** - several UX contexts are missing required property classes");
+  }
+
+  if (recs.length === 0) {
+    lines.push("✅ Token topology is healthy! Continue maintaining current structure.");
+  } else {
+    lines.push(recs.join("\n"));
+  }
+
+  lines.push("");
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      overview: {
+        totalTokens: audit.structure.totalTokens,
+        primitives: audit.dependencies.metrics.primitiveCount,
+        semanticTokens: audit.dependencies.metrics.semanticCount,
+        isolated: audit.dependencies.metrics.isolatedCount,
+        maxDepth: audit.dependencies.metrics.maxDepth,
+        avgDepth: audit.dependencies.metrics.avgDepth,
+        totalEdges: audit.dependencies.metrics.totalEdges,
+      },
+      dependencies: {
+        issues: audit.dependencies.issues,
+        metrics: audit.dependencies.metrics,
+      },
+      antiPatterns: audit.antiPatterns,
+      coverage: {
+        score: audit.coverage.coverageScore,
+        coveredContexts: audit.coverage.coveredContexts.length,
+        missingContexts: audit.coverage.missingContexts,
+      },
+    },
+  };
 }

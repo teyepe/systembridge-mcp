@@ -45,6 +45,7 @@ import {
   auditSemanticsTool,
   analyzeCoverageTool,
   checkContrastTool,
+  analyzeTopologyTool,
 } from "./tools/semantics.js";
 import {
   generatePaletteTool,
@@ -643,6 +644,62 @@ server.tool(
   },
   async (args) => {
     const { formatted } = await checkContrastTool(
+      args,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- analyze_topology -----------------------------------------------------
+
+server.tool(
+  "analyze_topology",
+  "Analyze token topology with dependency graph, anti-pattern detection, and structure analysis. " +
+    "Shows token relationships, reference chains, isolated tokens, circular dependencies, " +
+    "and common anti-patterns like primitive leakage, naming inconsistencies, and redundant tokens. " +
+    "Includes visual dependency graph (Mermaid), distribution charts, and coverage matrix.",
+  {
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "Only analyze tokens starting with this path prefix. Comma-separated for multiple prefixes.",
+      ),
+    includeGraph: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include Mermaid dependency graph in output. Default: true.",
+      ),
+    includeDistribution: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include token distribution charts. Default: true.",
+      ),
+    includeAntiPatterns: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include detailed anti-pattern analysis. Default: true.",
+      ),
+    graphMaxNodes: z
+      .number()
+      .optional()
+      .describe(
+        "Maximum nodes to show in dependency graph (prevents overwhelming diagrams). Default: 40.",
+      ),
+    graphMaxDepth: z
+      .number()
+      .optional()
+      .describe(
+        "Maximum reference depth to show in dependency graph. Default: 3.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await analyzeTopologyTool(
       args,
       PROJECT_ROOT,
       config,

@@ -12,6 +12,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import * as path from "node:path";
+import * as fs from "node:fs";
+import { checkVersion } from "./lib/version-check.js";
+
+// Import version from package.json
+const packageJsonPath = path.resolve(__dirname, "../package.json");
+const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
 import { loadConfig } from "./config/loader.js";
 import {
@@ -87,7 +93,7 @@ const config = loadConfig(PROJECT_ROOT);
 
 const server = new McpServer({
   name: "mcp-ds",
-  version: "0.5.0",
+  version: pkg.version,
 });
 
 // ---------------------------------------------------------------------------
@@ -1545,12 +1551,27 @@ server.prompt(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error(`[mcp-ds] Server started — project root: ${PROJECT_ROOT}`);
+  // Check for updates on startup
+  await checkVersion(pkg.name, pkg.version);
+
+  // Load tokens and measure performance
+  const startTime = Date.now();
+  const { loadAllTokens } = await import("./lib/parser.js");
+  const tokenMap = await loadAllTokens(PROJECT_ROOT, config);
+  const loadTime = Date.now() - startTime;
+
+  // Log startup diagnostics
+  console.error(
+    `[mcp-ds] Loaded ${tokenMap.size} tokens in ${loadTime}ms`,
+  );
+  console.error(`[mcp-ds] Project root: ${PROJECT_ROOT}`);
   console.error(
     `[mcp-ds] Token paths: ${config.tokenPaths.join(", ")}`,
   );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(`[mcp-ds] Server ready — 32 tools, 6 prompts, 1 resource`);
 }
 
 main().catch((err) => {

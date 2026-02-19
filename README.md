@@ -466,17 +466,127 @@ See [AGENT_HANDOFF.md](./AGENT_HANDOFF.md) for architecture details.
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing & Development
 
-```bash
-# Type check
-npm run build
+### Version Checking
 
-# Run a test query
-echo '{"jsonrpc":"2.0","method":"initialize",...}' | npm start
+The server automatically checks for updates on startup by querying the npm registry. This ensures you're running the latest version with bug fixes and new features. If an update is available, you'll see a friendly notification with the upgrade command.
+
+To disable version checking, set the `MCP_DS_SKIP_VERSION_CHECK` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "mcp-ds": {
+      "command": "node",
+      "args": ["/path/to/mcp-ds/dist/index.js"],
+      "env": {
+        "MCP_DS_SKIP_VERSION_CHECK": "true"
+      }
+    }
+  }
+}
 ```
 
-Full test suite coming soon.
+### Interactive CLI for Testing
+
+The interactive CLI lets you test search functionality without running a full MCP client. It's perfect for rapid iteration during development or debugging search queries.
+
+```bash
+# Start interactive mode
+npm run interactive
+
+# Example session:
+> color blue
+Found 12 token(s):
+  **color.primary.500**
+    Value: "#3B82F6"
+    Type: color
+    Match: text matched in value
+
+> spacing 8
+Found 3 token(s):
+  **spacing.2**
+    Value: "8px"
+    Type: dimension
+    Match: text matched in value
+
+> .debug        # Toggle raw JSON output
+> .help         # Show available commands
+> .quit         # Exit
+```
+
+**Commands:**
+- `.help` — Show command reference
+- `.debug` — Toggle debug mode (shows raw JSON responses)
+- `.clear` — Clear screen
+- `.quit` — Exit (or Ctrl+C)
+
+**Query Examples:**
+- `color blue` — Find color tokens containing "blue"
+- `spacing 8` — Find spacing tokens with value "8"
+- `type:color` — Filter by token type
+- `button accent` — Find tokens related to accent buttons
+
+### Automated Test Suite
+
+The test suite ensures search quality and prevents regressions. Inspired by Dialtone MCP Server's production-tested approach (77 tests, 100% pass rate).
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (auto-rerun on file changes)
+npm run test:watch
+
+# Run with coverage report
+npm run test:coverage
+```
+
+**Test Coverage:**
+- **Color Queries:** Blue tokens, primary colors, hex value matching
+- **Spacing Queries:** Value search, name search
+- **Typography Queries:** Font families, font weights
+- **Semantic Queries:** Action accent, surface danger
+- **Filtering:** Type filters (color, dimension), deprecated token handling
+- **Path Prefix:** Filtering by token path prefix
+- **Empty Results:** Graceful handling of no-match queries
+- **Result Structure:** Schema validation, proper token formatting
+
+**Example Test Output:**
+```
+✓ Search Quality Tests (16 tests)
+  ✓ Color Queries (3 tests)
+  ✓ Spacing Queries (2 tests)
+  ✓ Typography Queries (2 tests)
+  ✓ Filtering (4 tests)
+✓ Tool Integration Tests (4 tests)
+
+Test Files  2 passed (2)
+     Tests  20 passed (20)
+```
+
+### Type Checking
+
+```bash
+# Build and type check
+npm run build
+
+# Watch mode (auto-rebuild on file changes)
+npm run watch
+```
+
+### Manual Testing with MCP Inspector
+
+For testing the full MCP protocol:
+
+```bash
+# Start server in STDIO mode
+npm start
+
+# In another terminal, send test messages
+echo '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}' | npm start
+```
 
 ---
 

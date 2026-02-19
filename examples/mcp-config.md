@@ -1,34 +1,66 @@
 # Example MCP Configuration Files
 
-Copy these examples to your MCP configuration file.
+Copy these examples to your MCP configuration file. For per-client setup (Cursor, VS Code, Claude Desktop, Claude Code), see [Setup by Client](../docs/setup-by-client.md).
 
-## For VS Code
+## Zero-path setup (recommended)
 
-Location: `~/Library/Application Support/Code/User/mcp.json` (macOS)
-
-### Using npm link (recommended for development)
+Add `systembridge-mcp` as a devDependency and use npx. No `SYSTEMBRIDGE_MCP_PROJECT_ROOT` needed when using project-level MCP config—the server discovers the project root by walking up to find a config file.
 
 ```json
 {
   "mcpServers": {
     "systembridge-mcp": {
-      "command": "systembridge-mcp",
-      "env": {
-        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "${workspaceFolder}"
-      }
+      "command": "npx",
+      "args": ["systembridge-mcp"]
     }
   }
 }
 ```
 
-### Using direct path
+Place this in `.cursor/mcp.json` (Cursor) or your MCP config location. Add `.systembridge-mcp.json` or `systembridge-mcp.config.json` in your project root (optional; sensible defaults apply).
+
+## For Cursor
+
+Location: `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project)
+
+### Zero-path (project-level)
 
 ```json
 {
   "mcpServers": {
     "systembridge-mcp": {
-      "command": "node",
-      "args": ["/Users/tasos.dervenagas/Documents/repos/systembridge-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["systembridge-mcp"]
+    }
+  }
+}
+```
+
+## For VS Code
+
+Location: `~/Library/Application Support/Code/User/mcp.json` (macOS)
+
+### Zero-path
+
+```json
+{
+  "mcpServers": {
+    "systembridge-mcp": {
+      "command": "npx",
+      "args": ["systembridge-mcp"]
+    }
+  }
+}
+```
+
+### With explicit workspace folder
+
+```json
+{
+  "mcpServers": {
+    "systembridge-mcp": {
+      "command": "npx",
+      "args": ["systembridge-mcp"],
       "env": {
         "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "${workspaceFolder}"
       }
@@ -39,15 +71,14 @@ Location: `~/Library/Application Support/Code/User/mcp.json` (macOS)
 
 ## For Claude Desktop
 
-Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
-
-### Using npm link
+Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS). Claude Desktop has no workspace concept—set `SYSTEMBRIDGE_MCP_PROJECT_ROOT`.
 
 ```json
 {
   "mcpServers": {
     "systembridge-mcp": {
-      "command": "systembridge-mcp",
+      "command": "npx",
+      "args": ["systembridge-mcp"],
       "env": {
         "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/your/design-tokens"
       }
@@ -56,48 +87,21 @@ Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (mac
 }
 ```
 
-### Testing with example tokens
-
-```json
-{
-  "mcpServers": {
-    "systembridge-mcp": {
-      "command": "systembridge-mcp",
-      "env": {
-        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/systembridge-mcp"
-      }
-    }
-  }
-}
-```
-
-### Using current directory (auto-detect)
-
-```json
-{
-  "mcpServers": {
-    "systembridge-mcp": {
-      "command": "systembridge-mcp"
-    }
-  }
-}
-```
-
 ## Multiple Token Projects
-
-You can configure multiple instances pointing to different token projects:
 
 ```json
 {
   "mcpServers": {
     "systembridge-mcp-project-a": {
-      "command": "systembridge-mcp",
+      "command": "npx",
+      "args": ["systembridge-mcp"],
       "env": {
         "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/project-a/tokens"
       }
     },
     "systembridge-mcp-project-b": {
-      "command": "systembridge-mcp",
+      "command": "npx",
+      "args": ["systembridge-mcp"],
       "env": {
         "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/project-b/design-system"
       }
@@ -108,14 +112,12 @@ You can configure multiple instances pointing to different token projects:
 
 ## Windows Paths
 
-For Windows users, use double backslashes or forward slashes:
-
 ```json
 {
   "mcpServers": {
     "systembridge-mcp": {
-      "command": "node",
-      "args": ["C:/Users/YourName/systembridge-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["systembridge-mcp"],
       "env": {
         "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "C:/Projects/design-tokens"
       }

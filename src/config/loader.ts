@@ -10,11 +10,33 @@ import JSON5 from "json5";
 import type { McpDsConfig } from "../lib/types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 
-const CONFIG_FILENAMES = [
+export const CONFIG_FILENAMES = [
   "systembridge-mcp.config.json",
   "systembridge-mcp.config.json5",
   ".systembridge-mcp.json",
-];
+] as const;
+
+/**
+ * Resolve project root: env var takes precedence, then walk up from cwd
+ * to find a directory with a config file, else fall back to cwd.
+ */
+export function resolveProjectRoot(): string {
+  const envRoot = process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT;
+  if (envRoot) return path.resolve(envRoot);
+
+  let dir = process.cwd();
+  const root = path.parse(dir).root;
+
+  while (true) {
+    for (const name of CONFIG_FILENAMES) {
+      if (fs.existsSync(path.join(dir, name))) return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir || parent === root) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
 
 /**
  * Deep-merge source into target (simple — arrays are replaced, not merged).

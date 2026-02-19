@@ -53,7 +53,7 @@ To test with the included example tokens:
     "systembridge-mcp": {
       "command": "systembridge-mcp",
       "env": {
-        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/systembridge-mcp"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/systembridge-mcp"
       }
     }
   }

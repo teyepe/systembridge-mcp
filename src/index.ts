@@ -19,7 +19,7 @@ import { checkVersion } from "./lib/version-check.js";
 const packageJsonPath = path.resolve(__dirname, "../package.json");
 const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
-import { loadConfig } from "./config/loader.js";
+import { loadConfig, resolveProjectRoot } from "./config/loader.js";
 import {
   listTokenResources,
   readTokenResource,
@@ -82,10 +82,7 @@ import { generateMakeGuidelinesTool } from "./tools/figma-make.js";
 // Resolve project root
 // ---------------------------------------------------------------------------
 
-const PROJECT_ROOT = process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT
-  ? path.resolve(process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT)
-  : process.cwd();
-
+const PROJECT_ROOT = resolveProjectRoot();
 const config = loadConfig(PROJECT_ROOT);
 
 // ---------------------------------------------------------------------------

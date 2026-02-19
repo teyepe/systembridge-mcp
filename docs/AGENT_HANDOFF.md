@@ -213,15 +213,13 @@ systembridge-mcp/
 │   └── themes/                     # Theme definitions
 ├── docs/
 │   ├── AGENT_HANDOFF.md            # This file
-│   ├── competitive-analysis.md     # Market research & feature gaps
 │   ├── figma-integration.md        # Figma variable cross-referencing
 │   ├── migration-system.md         # Risk assessment and scenarios
 │   └── migration-executor.md       # Execution, validation, rollback
 ├── systembridge-mcp.config.json              # Example configuration
 ├── package.json                    # Dependencies & scripts
 ├── tsconfig.json                   # TypeScript configuration (strict mode)
-├── README.md                       # User-facing documentation
-└── AGENT_HANDOFF.md                # This file
+└── README.md                       # User-facing documentation
 ```
 
 ### File Size & Complexity
@@ -851,9 +849,9 @@ The migration system integrates with:
 
 ### Documentation
 
-- [migration-system.md](../docs/migration-system.md): Risk assessment and scenario generation guide
-- [migration-executor.md](../docs/migration-executor.md): Execution, validation, and rollback workflows
-- [figma-integration.md](../docs/figma-integration.md): Figma variable cross-referencing
+- [migration-system.md](./migration-system.md): Risk assessment and scenario generation guide
+- [migration-executor.md](./migration-executor.md): Execution, validation, and rollback workflows
+- [figma-integration.md](./figma-integration.md): Figma variable cross-referencing
 
 ---
 
@@ -1065,7 +1063,7 @@ User: "Generate docs for Button component"
 
 ### Documentation
 
-- [figma-integration.md](../docs/figma-integration.md): Complete integration guide
+- [figma-integration.md](./figma-integration.md): Complete integration guide
 
 ---
 
@@ -2253,7 +2251,7 @@ test: add unit tests for semantic parser
 3. **Critical files:** Read `src/lib/semantics/ontology.ts` first
 4. **Before extending:** Review [Extension Points](#extension-points)
 5. **Before refactoring:** Review [Design Decisions](#design-decisions--rationale)
-6. **When stuck:** Search `docs/competitive-analysis.md` for inspiration
+6. **When stuck:** Review similar MCP servers (Figma MCP, Dialtone MCP, design-systems-mcp) for inspiration
 
 **For humans:**
 
@@ -2275,8 +2273,9 @@ The goal is to make design systems **AI-native**. Not just readable by AI, but e
 
 **Version:** 0.7.0  
 **Last Updated:** 2026-02-19  
+**Author:** Tasos Dervenagas  
 **Maintainer:** Human + AI collaboration  
-**License:** MIT
+**License:** MIT (Copyright © 2024–2026 Tasos Dervenagas)
 
 **Changelog:**
 - **v0.7.0:** Phase 3 - Usage examples, private filtering, metadata (33 tests)

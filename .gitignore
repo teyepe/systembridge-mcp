@@ -49,3 +49,6 @@ coverage/
 *.tmp
 *.temp
 .temp/
+
+# Internal documentation (strategy, competitive analysis)
+docs/internal/

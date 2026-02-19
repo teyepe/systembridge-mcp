@@ -2,8 +2,8 @@
 
 > **Purpose:** This document enables LLMs and AI agents to understand, maintain, and extend the mcp-ds codebase autonomously. It provides deep architectural context, design rationale, and practical guidance for evolution.
 
-**Last Updated:** 2026-02-18  
-**Codebase Version:** 0.4.0  
+**Last Updated:** 2026-02-19  
+**Codebase Version:** 1.0.0  
 **Target Audience:** LLMs, AI agents, autonomous coding systems
 
 ---
@@ -154,7 +154,19 @@ mcp-ds/
 │   │   │   ├── ontology.ts         # (1350 lines) CORE KNOWLEDGE
 │   │   │   ├── scaffold.ts         # Token scaffolding from components
 │   │   │   ├── audit.ts            # Token compliance checking
+│   │   │   ├── visualization.ts    # Mermaid diagrams, ASCII heatmaps
 │   │   │   ├── scoping.ts          # Scoping rule engine
+│   │   │   └── index.ts
+│   │   ├── migration/
+│   │   │   ├── risk-assessment.ts  # 5-dimensional risk analysis
+│   │   │   ├── scenarios.ts        # Conservative/progressive/comprehensive
+│   │   │   ├── executor.ts         # Phase execution, reference updates
+│   │   │   ├── scanner.ts          # Codebase scanning (TS/JS/CSS/SCSS/JSON)
+│   │   │   ├── validation.ts       # Post-migration validation
+│   │   │   └── index.ts
+│   │   ├── figma/
+│   │   │   ├── usage-analyzer.ts   # Figma variable cross-referencing
+│   │   │   ├── collections.ts      # Figma variable collection helpers
 │   │   │   └── index.ts
 │   │   ├── style-dictionary-config.ts # SD transformation config
 │   │   ├── themes/
@@ -169,12 +181,12 @@ mcp-ds/
 │   │   └── tokens.ts               # Token resources for MCP
 │   └── tools/
 │       ├── brands.ts               # Brand management tools
-│       ├── designer.ts             # Designer-centric tools (plan/audit/analyze)
+│       ├── designer.ts             # Designer-centric tools (1024 lines)
 │       ├── factory.ts              # System generation tools
 │       ├── palette.ts              # Color palette tools
 │       ├── scales.ts               # (963 lines) Scale system tools
 │       ├── search.ts               # Token search tool
-│       ├── semantics.ts            # Semantic token tools
+│       ├── semantics.ts            # Semantic + migration tools (1227 lines)
 │       ├── themes.ts               # Theme management tools
 │       ├── transform.ts            # Token transformation tools
 │       └── validate.ts             # Validation tools
@@ -184,7 +196,11 @@ mcp-ds/
 │   ├── component/                  # Component-specific tokens
 │   └── themes/                     # Theme definitions
 ├── docs/
-│   └── competitive-analysis.md     # Market research & feature gaps
+│   ├── AGENT_HANDOFF.md            # This file
+│   ├── competitive-analysis.md     # Market research & feature gaps
+│   ├── figma-integration.md        # Figma variable cross-referencing
+│   ├── migration-system.md         # Risk assessment and scenarios
+│   └── migration-executor.md       # Execution, validation, rollback
 ├── mcp-ds.config.json              # Example configuration
 ├── package.json                    # Dependencies & scripts
 ├── tsconfig.json                   # TypeScript configuration (strict mode)
@@ -196,16 +212,19 @@ mcp-ds/
 
 **Critical files** (read these first):
 
-- `src/index.ts` (1148 lines) — MCP server, tool & prompt registration
+- `src/index.ts` (1441 lines) — MCP server, tool & prompt registration
 - `src/lib/semantics/ontology.ts` (1350 lines) — **THE KNOWLEDGE CORE**
 - `src/lib/types.ts` (394 lines) — Type system foundation
 - `src/lib/parser.ts` (450 lines) — Token loading & resolution
-- `src/tools/designer.ts` (818 lines) — Designer-centric intelligence
+- `src/tools/semantics.ts` (1227 lines) — Semantic & migration tools
+- `src/tools/designer.ts` (1024 lines) — Designer-centric intelligence
 
 **High-impact modules:**
 
-- `src/lib/semantics/` (3000+ lines total) — Semantic token intelligence
+- `src/lib/semantics/` (4380+ lines total) — Semantic token intelligence
+- `src/lib/migration/` (3460+ lines total) — Token migration orchestration
 - `src/lib/designer/` (1300+ lines) — UI pattern matching & analysis
+- `src/lib/scales/` (3500+ lines) — Mathematical scale system
 - `src/lib/palette/` (800+ lines) — Color palette generation
 
 ---
@@ -374,6 +393,235 @@ Adapters translate vendor formats → internal `DesignToken[]`.
 - ~100x speedup for gap analysis on large token sets
 - Scales to real-world token systems (5000+ tokens)
 - No change to API surface
+
+---
+
+## Migration System Architecture
+
+**Added in:** v1.0.0  
+**Location:** `src/lib/migration/`, `src/lib/semantics/visualization.ts`, `src/lib/figma/usage-analyzer.ts`, `src/tools/semantics.ts`  
+**Tools:** 4 new tools (analyze_topology, audit_figma_usage, generate_refactor_scenarios, execute_migration)
+
+### Purpose & Motivation
+
+Existing design systems inevitably accumulate technical debt: inconsistent naming, primitive leakage, redundant tokens, and structural anti-patterns. The migration system provides comprehensive B→C (augmented analysis → migration orchestrator) capabilities:
+
+1. **Topology analysis** to map existing token dependencies and identify anti-patterns
+2. **Figma integration** to cross-reference local tokens with Figma variables
+3. **Risk-assessed scenario generation** for planning safe migrations
+4. **Automated execution** with dry-run, validation, and rollback
+
+**Philosophy:** "Cartography not judgment" — The system maps what exists, identifies patterns, and provides options without imposing opinions. Ground truth (existing tokens) is always the starting point.
+
+### Four-Phase Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Phase 1: Topology Analysis (analyze_topology)             │
+│  • Dependency graph: primitives → semantics, circular refs │
+│  • Anti-patterns: 5 types (leakage, drift, redundancy)    │
+│  • Visualization: Mermaid diagrams, ASCII heatmaps         │
+│  Output: Technical debt map with severity indicators      │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Phase 2: Figma Integration (audit_figma_usage)            │
+│  • Variable mapping: 4 strategies (exact/normalized/       │
+│    semantic/value with confidence 0.7-1.0)                 │
+│  • Cross-reference: unused/missing/discrepancies           │
+│  • Component coverage: expected vs bound tokens            │
+│  Output: Sync status report (synced/partial/diverged)     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Phase 3: Scenario Generation (generate_refactor_scenarios)│
+│  • Risk assessment: 5 dimensions (usage 30%, confidence    │
+│    25%, structural 20%, accessibility 15%, brand 10%)      │
+│  • 3 approaches: Conservative (95% success, 26h),          │
+│    Progressive (80%, 62h), Comprehensive (65%, 132h)       │
+│  • Comparison matrix with weighted ranking                 │
+│  Output: Phased action plans with effort estimates         │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Phase 4: Execution (execute_migration)                    │
+│  • Dry-run by default (must opt-in to live execution)     │
+│  • 7 action types: rename/merge/split/restructure/delete/  │
+│    create/update-references                                 │
+│  • Reference scanning: TS/JS/CSS/SCSS/JSON patterns        │
+│  • 5-layer validation: integrity/references/naming/        │
+│    structure/accessibility                                  │
+│  • Snapshot/rollback for safety                            │
+│  Output: Execution report with validation results          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Data Structures
+
+**DependencyGraph** (topology analysis result):
+```typescript
+interface DependencyGraph {
+  nodes: DependencyNode[];          // All tokens
+  edges: DependencyEdge[];          // References between tokens
+  metrics: {
+    totalTokens: number;
+    rootTokens: number;             // Primitives (no dependencies)
+    maxDepth: number;               // Deepest reference chain
+    avgDepth: number;
+  };
+  issues: DependencyIssue[];        // Circular refs, unresolved, deep chains
+}
+```
+
+**AntiPattern** (detected technical debt):
+```typescript
+interface AntiPattern {
+  type: "primitive-leakage" | "naming-inconsistency" | 
+        "redundant-tokens" | "semantic-drift" | "missing-variants";
+  severity: "error" | "warning" | "info";
+  affectedTokens: string[];
+  description: string;
+  suggestion: string;
+}
+```
+
+**MigrationRiskProfile** (5-dimensional risk scoring):
+```typescript
+interface MigrationRiskProfile {
+  overallRisk: number;              // 0-100 composite score
+  dimensions: {
+    usage: { score: number; weight: 0.30; };
+    confidence: { score: number; weight: 0.25; };
+    structural: { score: number; weight: 0.20; };
+    accessibility: { score: number; weight: 0.15; };
+    brand: { score: number; weight: 0.10; };
+  };
+  tokenRisks: TokenRisk[];          // Per-token risk details
+  readiness: ReadinessIndicators;   // 4 readiness factors
+}
+```
+
+**MigrationScenario** (phased action plan):
+```typescript
+interface MigrationScenario {
+  id: string;
+  name: string;
+  approach: "conservative" | "progressive" | "comprehensive";
+  estimatedSuccessRate: number;    // 95%, 80%, 65%
+  phases: MigrationPhase[];         // Ordered phases
+  totalEffort: number;              // Hours
+  risks: string[];
+  benefits: string[];
+  prerequisites: string[];
+}
+```
+
+**MigrationPhase** (executable unit):
+```typescript
+interface MigrationPhase {
+  phase: number;
+  name: string;
+  actions: MigrationAction[];       // 7 action types
+  validation: string[];             // Post-phase checks
+  rollbackPlan: string;
+  effort: number;                   // Hours
+}
+```
+
+### Risk Assessment Algorithm
+
+**Token-level scoring** (0-100 scale):
+```
+Base risk = 0
+
+IF referenceCount > 10:     risk += 30  (high usage)
+IF depth > 3:               risk += 20  (deep chain)
+IF brandToken:              risk += 25  (brand identity impact)
+IF a11yCritical:            risk += 20  (accessibility exposure)
+IF circularDependency:      risk += 35  (structural issue)
+IF unresolvedReference:     risk += 40  (broken link)
+
+Final risk = min(risk, 100)
+```
+
+**Dimension aggregation**:
+```
+Usage risk:       { referenceDensity, dependentCount }
+Confidence risk:  { unresolvedRefs, circularRefs, namingClarity }
+Structural risk:  { depth, complexity, brokenLinks }
+Accessibility:    { a11yCriticalCount, contrastViolations }
+Brand risk:       { brandTokenCount, visualIdentityImpact }
+
+Overall = Σ(dimension.score × dimension.weight)
+```
+
+### Scenario Generation Strategy
+
+**Conservative** (95% success rate, 26h):
+- **Goal:** Minimal risk, fix only critical issues
+- **Phases:** 3 (critical fixes, naming cleanup, documentation)
+- **Changes:** ~10-20% of tokens
+- **Best for:** Production systems, low risk tolerance
+
+**Progressive** (80% success rate, 62h):
+- **Goal:** Balanced improvement, structural alignment
+- **Phases:** 4 (critical, structural, semantic, validation)
+- **Changes:** ~40-60% of tokens
+- **Best for:** Active development, moderate tolerance
+
+**Comprehensive** (65% success rate, 132h):
+- **Goal:** Complete transformation, full ontology compliance
+- **Phases:** 6 (critical, structural, semantic, themification, component tokens, validation)
+- **Changes:** ~80-100% of tokens
+- **Best for:** Major refactoring, green-field migration
+
+### Execution Safety Features
+
+1. **Dry-run default:** All executions preview changes unless `dryRun: false` explicitly set
+2. **Snapshot creation:** Token state captured before execution for instant rollback
+3. **Stop-on-error:** First failure halts execution to prevent cascade issues
+4. **Multi-layer validation:**
+   - Integrity: No duplicate paths, all operations successful
+   - References: No broken links, no circular dependencies
+   - Naming: Semantic ontology compliance
+   - Structure: Proper hierarchy, reasonable depth (<4 levels)
+   - Accessibility: WCAG contrast preservation (4.5:1)
+5. **Phase-by-phase execution:** Execute one phase, validate, then continue
+
+### Reference Scanning Patterns
+
+The scanner detects token references across file types:
+
+**TypeScript/JavaScript:**
+- Import statements: `import { color } from './tokens'`
+- Object access: `tokens['color.primary']`, `tokens.color.primary`
+- Function calls: `getToken('color.primary')`, `useToken('color.primary')`
+- CSS-in-JS: `theme.colors.primary`
+
+**CSS/SCSS:**
+- CSS variables: `var(--color-primary)`
+- SCSS variables: `$color-primary`
+- Custom properties: `--color-primary: #007bff`
+
+**JSON:**
+- Token references: `{ "value": "{color.primary}" }`
+- Property names: `"color.primary": "#007bff"`
+
+### Integration with Existing Systems
+
+The migration system integrates with:
+
+1. **Semantic Ontology** (`src/lib/semantics/ontology.ts`): Uses `parseSemanticPath()` for validation, `buildSemanticPath()` for restructuring
+2. **Audit System** (`src/lib/semantics/audit.ts`): Extends `auditSemanticTokens()` with dependency/anti-pattern analysis
+3. **Figma Integration** (`src/lib/figma/usage-analyzer.ts`): Cross-references via 4 mapping strategies
+4. **Visualization** (`src/lib/semantics/visualization.ts`): Mermaid diagrams, ASCII heatmaps for topology
+5. **Color System** (`src/lib/color/index.ts`): WCAG validation for accessibility dimension
+
+### Documentation
+
+- [migration-system.md](../docs/migration-system.md): Risk assessment and scenario generation guide
+- [migration-executor.md](../docs/migration-executor.md): Execution, validation, and rollback workflows
+- [figma-integration.md](../docs/figma-integration.md): Figma variable cross-referencing
 
 ---
 

@@ -68,7 +68,7 @@ npm run build
 
 3. Restart Claude Desktop
 
-4. Look for the 🔌 MCP icon — you should see **28 tools** available from mcp-ds
+4. Look for the 🔌 MCP icon — you should see **29 tools** available from mcp-ds
 
 ---
 
@@ -107,6 +107,11 @@ Claude will use `audit_semantics` + `analyze_coverage` + `check_contrast` to pro
 > "I need semantic tokens for button, text-input, and alert components."
 
 Claude will use `scaffold_semantics` to generate the full token surface with all states and intents.
+
+**Migrating existing tokens:**
+> "I have legacy tokens that don't follow our naming convention. Help me migrate them safely."
+
+Claude will use `analyze_topology` → `generate_refactor_scenarios` → `execute_migration` to plan and execute the migration with validation.
 
 ---
 
@@ -180,6 +185,31 @@ Research-validated scale generation, analysis, and transformation based on desig
 - **Tailwind CSS:** 4px base, hybrid linear-exponential (Tailwind scale)
 - **Bootstrap:** 1rem base, modular scale for spacing
 - **Minimalist:** Clean ratios, maximum whitespace
+
+### **Token Migration System**
+
+Comprehensive B→C migration orchestration for evolving existing design systems:
+
+| Tool | What it does | Use case |
+|------|-------------|----------|
+| **analyze_topology** | Maps token dependencies, detects anti-patterns (primitive leakage, naming drift, circular refs), visualizes structure with Mermaid diagrams | Understanding existing token architecture, finding technical debt |
+| **audit_figma_usage** | Cross-references local tokens with Figma variables, identifies sync issues, calculates coverage | Keeping Figma and codebase in sync, finding unused tokens |
+| **generate_refactor_scenarios** | Generates 3 migration approaches (conservative 95%, progressive 80%, comprehensive 65% success rates) with risk assessment, effort estimation | Planning token refactors, choosing migration strategy |
+| **execute_migration** | Executes migration with dry-run, automated reference updates, validation (integrity/accessibility/structure), rollback snapshots | Safe token migrations with automated codebase updates |
+
+**Migration Pipeline:**
+```
+Existing Tokens → Audit Topology → Generate Scenarios → Execute (Dry Run) → Validate → Execute (Live)
+```
+
+**Safety Features:**
+- Dry-run by default (must explicitly opt-in to live execution)
+- Snapshot creation for instant rollback
+- Multi-layer validation (integrity, references, naming, structure, accessibility)
+- Automated reference scanning and updates across TypeScript/JavaScript/CSS/SCSS/JSON
+- Phase-by-phase execution with stop-on-error
+
+See [docs/migration-system.md](./docs/migration-system.md) and [docs/migration-executor.md](./docs/migration-executor.md) for complete guide.
 
 ### **System Generation**
 
@@ -440,3 +470,13 @@ Inspired by:
 ---
 
 **Made with ❤️ for designers and developers building better design systems.**
+
+---
+
+## 📖 Additional Documentation
+
+- [AGENT_HANDOFF.md](./docs/AGENT_HANDOFF.md) — Architecture guide for LLMs and agents
+- [migration-system.md](./docs/migration-system.md) — Risk assessment and scenario generation
+- [migration-executor.md](./docs/migration-executor.md) — Execution, validation, and rollback
+- [figma-integration.md](./docs/figma-integration.md) — Figma variable cross-referencing
+- [competitive-analysis.md](./docs/competitive-analysis.md) — Market analysis

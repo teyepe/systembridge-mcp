@@ -296,7 +296,7 @@ See [docs/figma-integration.md](./docs/figma-integration.md) for complete integr
 
 ## 📚 Guided Workflows (Prompts)
 
-The server includes **6 pre-built prompts** that orchestrate multiple tools into complete workflows:
+The server includes **7 pre-built prompts** that orchestrate multiple tools into complete workflows:
 
 1. **create-token** — Step-by-step token creation with duplicate checking
 2. **audit-tokens** — Comprehensive token architecture health check
@@ -304,6 +304,7 @@ The server includes **6 pre-built prompts** that orchestrate multiple tools into
 4. **design-color-palette** — Create palette, map to semantics, verify contrast
 5. **design-from-scratch** — Blank canvas to complete token plan
 6. **design-handoff-review** — Pre-handoff design system compliance check
+7. **component-reference** — Research components across 50+ design systems via component.gallery
 
 ---
 

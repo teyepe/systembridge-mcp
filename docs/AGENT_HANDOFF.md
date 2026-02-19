@@ -38,7 +38,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  MCP Protocol Layer (src/index.ts)                          │
 │  • Tool registration (32 tools)                             │
-│  • Prompt registration (6 prompts)                          │
+│  • Prompt registration (7 prompts)                          │
 │  • Zod schema validation                                    │
 │  • McpServer from @modelcontextprotocol/sdk                 │
 └────────────────────────┬────────────────────────────────────┘
@@ -596,12 +596,13 @@ Dialtone's approach of smart filtering and inline examples provides excellent DX
 
 **Problem:** AI assistants are powerful but users don't know what sequences of tools to call.
 
-**Solution:** Ship 6 orchestration prompts that encode best-practice workflows as multi-step tool call sequences.
+**Solution:** Ship 7 orchestration prompts that encode best-practice workflows as multi-step tool call sequences.
 
 **Benefits:**
 - Lowers barrier to entry (one prompt vs. 5 manual tool calls)
 - Encodes institutional knowledge (how to properly audit a design)
 - Users can still call tools directly if needed
+- Integrates external references (component.gallery) for research workflows
 
 ### Why CIEDE2000 for Color Matching?
 

@@ -32,7 +32,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  MCP Protocol Layer (src/index.ts)                          │
-│  • Tool registration (28 tools)                             │
+│  • Tool registration (32 tools)                             │
 │  • Prompt registration (6 prompts)                          │
 │  • Zod schema validation                                    │
 │  • McpServer from @modelcontextprotocol/sdk                 │
@@ -47,6 +47,7 @@
 │  • Scales: analyze, generate, suggest, density, audit       │
 │  • Themes: list/resolve brands, themes, dimensions          │
 │  • Transform: transform_tokens, generate_system             │
+│  • Figma: extract, validate, generate docs                  │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────┴────────────────────────────────────┐
@@ -61,6 +62,8 @@
 │  │ factory/           │ System generation algorithms    │  │
 │  │ formats/           │ W3C, Tokens Studio, SD adapters │  │
 │  │ validators/        │ Rule engine, presets            │  │
+│  │ figma/             │ Variable extraction, validation │  │
+│  │ migration/         │ Topology, risk, execution       │  │
 │  │ io/                │ File writing utilities          │  │
 │  └──────────────────────────────────────────────────────┘  │
 │  parser.ts      — Token file loading & resolution          │
@@ -622,6 +625,218 @@ The migration system integrates with:
 - [migration-system.md](../docs/migration-system.md): Risk assessment and scenario generation guide
 - [migration-executor.md](../docs/migration-executor.md): Execution, validation, and rollback workflows
 - [figma-integration.md](../docs/figma-integration.md): Figma variable cross-referencing
+
+---
+
+## Figma Integration Architecture
+
+**Added in:** v0.5.0  
+**Location:** `src/lib/figma/`, `src/tools/designer.ts`  
+**Tools:** 3 new tools (extract_figma_tokens, validate_figma_tokens, generate_component_docs)
+
+### Purpose & Motivation
+
+Figma has become the industry-standard design tool, yet maintaining synchronization between Figma variables and code-based token systems remains a manual, error-prone process. The Figma integration provides:
+
+1. **Bidirectional token extraction** from Figma variables to standard formats (W3C, Tokens Studio, Style Dictionary)
+2. **Validation and drift detection** between Figma designs and local token definitions
+3. **Automated component documentation** combining Figma component data with design token knowledge
+4. **Cross-platform interoperability** via the MCP Figma server
+
+**Philosophy:** "Design truth meets code truth" — Neither Figma nor code is automatically correct; the system detects discrepancies and helps teams resolve conflicts intentionally.
+
+### Three Core Capabilities
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Capability 1: Token Extraction (extract_figma_tokens)     │
+│  • Input: Figma variable definitions from mcp_figma        │
+│  • Processing: Type inference, collection mapping, naming  │
+│  • Output: W3C/Tokens Studio/Style Dictionary format       │
+│  Use case: Importing designer-defined variables to code    │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Capability 2: Validation (validate_figma_tokens)          │
+│  • Input: Figma variables + local token map                │
+│  • Checks: Naming mismatches, type errors, value drift     │
+│  • Output: Validation report with sync score (0-100)       │
+│  Use case: Detecting design-code drift, pre-handoff QA     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────┴────────────────────────────────────┐
+│  Capability 3: Documentation (generate_component_docs)     │
+│  • Input: Component names + Figma data + local tokens      │
+│  • Processing: Token matching, code example generation     │
+│  • Output: MDX/Markdown docs with frontmatter + examples   │
+│  Use case: Design-to-dev handoffs, automated docs          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Token Extraction Pipeline
+
+**Implemented in:** `src/lib/figma/extractor.ts` (not yet created — placeholder for future implementation)
+
+1. **Parse Figma variable definitions:**
+   - Input format: `{ 'variable/path': value, ... }` from `mcp_figma_get_variable_defs`
+   - Extract collection IDs, variable names, values, types
+
+2. **Type inference:**
+   - Color: Hex values (#RRGGBB), RGB objects
+   - Number: Unitless values, px/rem/em units
+   - String: Text values
+   - Boolean: true/false
+
+3. **Collection mapping:**
+   - Group variables by Figma collection
+   - Map collection names to token namespaces
+   - Preserve original collection IDs for reference
+
+4. **Format transformation:**
+   - **W3C Design Tokens:** `{ "token": { "$value": ..., "$type": ... } }`
+   - **Tokens Studio:** Flat structure with `$value`, `$type`, metadata
+   - **Style Dictionary:** Simple `{ "token": { "value": ... } }`
+
+5. **Metadata preservation:**
+   - Original Figma variable IDs
+   - Collection names and IDs
+   - Variable descriptions (if available)
+
+### Validation System
+
+**Implemented in:** `src/lib/figma/validator.ts` (not yet created — placeholder for future implementation)
+
+**Validation dimensions:**
+
+1. **Naming consistency:**
+   - Compare Figma variable paths to semantic token paths
+   - Detect common patterns: camelCase vs kebab-case, singular/plural
+   - Score: 100% = exact match, 80% = normalized match, 60% = semantic similarity
+
+2. **Type correctness:**
+   - Check if Figma variable type matches token `$type`
+   - Error if color variable mapped to spacing token
+   - Warning if type undefined or ambiguous
+
+3. **Value drift:**
+   - Compare Figma variable values to local token values
+   - For colors: Use CIEDE2000 perceptual distance (threshold ΔE < 1.0 = "same")
+   - For numbers: Use relative difference (threshold < 5% = "close")
+   - Error if significant drift detected
+
+4. **Coverage analysis:**
+   - Identify tokens in Figma but not in code (missing locally)
+   - Identify tokens in code but not in Figma (missing in Figma)
+   - Calculate sync score: `matched / (matched + mismatched + missing)`
+
+**Output:** Structured validation report with:
+- `valid`: Boolean overall status
+- `syncStatus`: "synced" | "partial" | "diverged"
+- `syncScore`: 0-100 coverage/accuracy score
+- `errors`: Array of critical issues
+- `warnings`: Array of non-critical issues
+- `stats`: Summary counts (total, matched, mismatched, missing)
+
+### Component Documentation Generator
+
+**Implemented in:** `src/lib/figma/doc-generator.ts` (not yet created — placeholder for future implementation)
+
+**Generation pipeline:**
+
+1. **Component data collection:**
+   - Accept component names from user
+   - Optionally accept Figma component data from `mcp_figma_get_component_details`
+   - Load local token map
+
+2. **Token mapping:**
+   - Match component properties to design tokens
+   - Use semantic ontology to determine which tokens apply (e.g., button → action intent tokens)
+   - Include token paths, types, resolved values
+
+3. **Code example generation:**
+   - Generate usage examples in React (JSX/TSX), HTML, Vue, Svelte
+   - Show token references: `<Button variant="accent" />`
+   - Include CSS custom properties: `var(--background-action-accent)`
+
+4. **Frontmatter metadata:**
+   - Component name, category, status
+   - Token dependencies (list of used tokens)
+   - Figma link (if available)
+   - Last updated timestamp
+
+5. **Format output:**
+   - **Markdown (LLM-optimized):** Clean, structured, no fancy formatting
+   - **MDX:** React component imports + interactive examples
+   - **JSON Schema:** Machine-readable component specs
+
+**Example output (markdown-llm format):**
+
+```markdown
+---
+component: Button
+category: Action
+tokens: 12
+figma: https://figma.com/file/.../Button
+---
+
+# Button Component
+
+## Token References
+
+| Property | Token Path | Value |
+|----------|------------|-------|
+| background | background.action.accent.default | #007bff |
+| background:hover | background.action.accent.hover | #0056b3 |
+| text | text.action.accent | #ffffff |
+| border | border.action.accent | #0056b3 |
+
+## Usage Examples
+
+```jsx
+<Button variant="accent">Click Me</Button>
+```
+
+## Accessibility
+
+- Minimum contrast ratio: 4.5:1 (WCAG AA)
+- Touch target size: 44×44px minimum
+```
+
+### Integration with Existing Systems
+
+The Figma integration works with:
+
+1. **MCP Figma Server:** Uses `mcp_figma_get_variable_defs`, `mcp_figma_get_component_details`
+2. **Semantic Ontology:** Maps Figma variable names to semantic token paths
+3. **Color System:** Uses CIEDE2000 distance for visual color matching
+4. **Designer Tools:** Extends `plan_flow`, `audit_design` with Figma data
+5. **Validation Engine:** Cross-checks Figma values against local token rules
+
+### Workflow Example
+
+```
+User: "Extract tokens from Figma"
+1. Agent calls mcp_figma_get_variable_defs → receives { 'colors/primary': '#007bff', ... }
+2. Agent calls extract_figma_tokens with format='w3c-design-tokens'
+3. MCP-DS converts to W3C format, maps collections, infers types
+4. Returns: { "colors": { "primary": { "$value": "#007bff", "$type": "color" } } }
+
+User: "Are my Figma variables in sync with local tokens?"
+1. Agent calls mcp_figma_get_variable_defs
+2. Agent calls validate_figma_tokens with figmaVariableDefs + strict=true
+3. MCP-DS compares names, types, values against local tokens
+4. Returns: syncScore=85%, 3 naming mismatches, 1 missing in Figma, 2 value drifts
+
+User: "Generate docs for Button component"
+1. Agent calls mcp_figma_get_component_details for Button
+2. Agent calls generate_component_docs with componentNames=['Button']
+3. MCP-DS matches component properties to tokens, generates examples
+4. Returns: MDX documentation with token references, code examples, a11y info
+```
+
+### Documentation
+
+- [figma-integration.md](../docs/figma-integration.md): Complete integration guide
 
 ---
 

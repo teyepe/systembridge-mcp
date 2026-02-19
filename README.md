@@ -112,7 +112,7 @@ If you don't set `MCP_DS_PROJECT_ROOT`, the server will use the directory where 
 
 3. Restart Claude Desktop
 
-4. Look for the 🔌 MCP icon — you should see **29 tools** available from mcp-ds
+4. Look for the 🔌 MCP icon — you should see **32 tools** available from mcp-ds
 
 ---
 
@@ -254,6 +254,28 @@ Existing Tokens → Audit Topology → Generate Scenarios → Execute (Dry Run) 
 - Phase-by-phase execution with stop-on-error
 
 See [docs/migration-system.md](./docs/migration-system.md) and [docs/migration-executor.md](./docs/migration-executor.md) for complete guide.
+
+### **Figma Integration**
+
+Seamless interoperability with Figma variables via the Figma MCP server:
+
+| Tool | What it does | Use case |
+|------|-------------|----------|
+| **extract_figma_tokens** | Convert Figma variables to standard token formats (W3C, Tokens Studio, Style Dictionary) with collection mapping and metadata | Syncing Figma variables to your local token system, importing designer-defined tokens |
+| **validate_figma_tokens** | Validate Figma variables against local tokens, detect naming mismatches, type errors, missing mappings, and value discrepancies | Keeping Figma and codebase synchronized, catching design-code drift |
+| **generate_component_docs** | Generate comprehensive component documentation combining local tokens, Figma component data, and design system knowledge | Design-to-development handoffs, automated documentation |
+
+**Prerequisites:**
+- Install and configure [mcp-figma](https://github.com/modelcontextprotocol/servers/tree/main/src/figma) MCP server
+- Use `mcp_figma_get_variable_defs` to fetch Figma variables
+- Pass the variable definitions to the mcp-ds tools above
+
+**Workflow:**
+```
+Figma Variables → extract_figma_tokens → Local Tokens → validate_figma_tokens → Fix Mismatches → generate_component_docs
+```
+
+See [docs/figma-integration.md](./docs/figma-integration.md) for complete integration guide.
 
 ### **System Generation**
 

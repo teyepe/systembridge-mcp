@@ -2,13 +2,14 @@
  * search_tokens tool — deep token search & discovery.
  *
  * Allows querying tokens by name, type, value pattern, deprecation status,
- * and free-text search across paths and descriptions.
+ * lifecycle state, and free-text search across paths and descriptions.
  */
 import type {
   DesignToken,
   McpDsConfig,
   TokenSearchQuery,
   TokenSearchResult,
+  TokenLifecycle,
 } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
 
@@ -62,6 +63,22 @@ export async function searchTokens(
       const isDeprecated = !!token.deprecated;
       if (isDeprecated !== query.deprecated) continue;
       reasons.push(query.deprecated ? "is deprecated" : "is not deprecated");
+    }
+
+    // Lifecycle filter — smart defaults like Dialtone
+    // Default behavior: exclude draft tokens (only show active/deprecated)
+    // Set lifecycle='all' to include draft tokens
+    if (query.lifecycle !== "all") {
+      const tokenLifecycle = token.lifecycle || "active"; // default to active if not specified
+      
+      if (query.lifecycle) {
+        // Explicit lifecycle filter requested
+        if (tokenLifecycle !== query.lifecycle) continue;
+        reasons.push(`lifecycle is "${query.lifecycle}"`);
+      } else {
+        // Default: exclude draft tokens (smart filtering for production usage)
+        if (tokenLifecycle === "draft") continue;
+      }
     }
 
     // Value pattern (regex)

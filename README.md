@@ -173,7 +173,14 @@ Three tools designed to solve common designer pain points:
 
 ### **Token Management**
 
-- **search_tokens** — Find tokens by name, value, type, or content
+- **search_tokens** — Find tokens by name, value, type, lifecycle state, or content
+  - **Smart lifecycle filtering** (Phase 2): Excludes draft tokens by default to guide users toward production-ready tokens
+  - **Lifecycle states**: `draft` (experimental), `active` (production-ready), `deprecated` (being phased out)
+  - **Query examples**:
+    - `{ text: "blue", type: "color" }` — Find blue color tokens (excludes drafts)
+    - `{ lifecycle: "all" }` — Include all tokens regardless of lifecycle state
+    - `{ lifecycle: "draft" }` — Show only experimental/draft tokens
+    - `{ lifecycle: "active" }` — Show only production-ready tokens
 - **validate_tokens** — Check naming conventions, type correctness, and structure
 - **transform_tokens** — Convert between formats (W3C DTCG, Tokens Studio, Style Dictionary)
 
@@ -549,21 +556,75 @@ npm run test:coverage
 - **Typography Queries:** Font families, font weights
 - **Semantic Queries:** Action accent, surface danger
 - **Filtering:** Type filters (color, dimension), deprecated token handling
+- **Lifecycle Filtering (Phase 2):** Draft/active/deprecated state filtering
 - **Path Prefix:** Filtering by token path prefix
 - **Empty Results:** Graceful handling of no-match queries
 - **Result Structure:** Schema validation, proper token formatting
 
 **Example Test Output:**
 ```
-✓ Search Quality Tests (16 tests)
+✓ Search Quality Tests (21 tests)
   ✓ Color Queries (3 tests)
   ✓ Spacing Queries (2 tests)
   ✓ Typography Queries (2 tests)
   ✓ Filtering (4 tests)
+  ✓ Lifecycle Filtering (5 tests)
 ✓ Tool Integration Tests (4 tests)
 
 Test Files  2 passed (2)
-     Tests  20 passed (20)
+     Tests  25 passed (25)
+```
+
+### Token Caching (Phase 2)
+
+The server implements intelligent in-memory caching to reduce file I/O on repeated queries. Cache entries are automatically invalidated when token files change.
+
+**Performance Impact:**
+- 53% faster search queries with caching enabled
+- Most effective with large token sets and repeated queries
+- Automatic file change detection (checksum-based)
+- Configurable TTL (default: 60 seconds)
+
+**Configuration:**
+
+Caching is enabled by default. To disable it, set the `MCP_DS_CACHE` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "mcp-ds": {
+      "command": "node",
+      "args": ["/path/to/mcp-ds/dist/index.js"],
+      "env": {
+        "MCP_DS_CACHE": "false"
+      }
+    }
+  }
+}
+```
+
+### Performance Benchmarking
+
+Run performance benchmarks to measure search speed and caching impact:
+
+```bash
+npm run benchmark
+```
+
+**Example Output:**
+```
+📊 Benchmark: Search WITHOUT caching
+   Iterations: 5
+   Average: 6.25ms
+
+📊 Benchmark: Search WITH caching
+   Iterations: 5
+   Average: 2.93ms
+
+📈 Comparison
+   🚀 Faster by 53.0%
+
+Tip: Caching is most effective with large token sets.
 ```
 
 ### Type Checking

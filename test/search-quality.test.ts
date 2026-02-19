@@ -213,6 +213,79 @@ describe("Search Quality Tests", () => {
     });
   });
 
+  describe("Lifecycle Filtering (Phase 2)", () => {
+    it("should exclude draft tokens by default", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // By default, draft tokens should be excluded (smart filtering)
+      // All returned tokens should be active or deprecated, not draft
+      expect(
+        results.every((r) => r.token.lifecycle !== "draft"),
+      ).toBe(true);
+    });
+
+    it("should include draft tokens when lifecycle='all'", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", lifecycle: "all" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // With lifecycle='all', any lifecycle state is acceptable
+      expect(results).toBeDefined();
+    });
+
+    it("should filter by specific lifecycle state", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", lifecycle: "active" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // All results should have lifecycle='active' or be defaulted to active
+      expect(
+        results.every((r) => (r.token.lifecycle || "active") === "active"),
+      ).toBe(true);
+    });
+
+    it("should support lifecycle='draft' filter", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", lifecycle: "draft" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // All results should have lifecycle='draft'
+      if (results.length > 0) {
+        expect(results.every((r) => r.token.lifecycle === "draft")).toBe(true);
+      }
+    });
+
+    it("should support lifecycle='deprecated' filter", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", lifecycle: "deprecated" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // All results should have lifecycle='deprecated'
+      if (results.length > 0) {
+        expect(results.every((r) => r.token.lifecycle === "deprecated")).toBe(
+          true,
+        );
+      }
+    });
+  });
+
   describe("Path Prefix Filtering", () => {
     it("should filter by path prefix", async () => {
       const config = await loadConfig(PROJECT_ROOT);

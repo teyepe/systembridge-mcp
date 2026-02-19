@@ -12,6 +12,7 @@ import JSON5 from "json5";
 import YAML from "yaml";
 import type { DesignToken, McpDsConfig, TokenMap } from "./types.js";
 import { detectFormat, getAdapter } from "./formats/index.js";
+import { getCache, isCachingEnabled } from "./cache.js";
 
 // ---------------------------------------------------------------------------
 // File reading helpers
@@ -54,6 +55,22 @@ export async function loadAllTokens(
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<TokenMap> {
+  // Check cache if enabled
+  if (isCachingEnabled()) {
+    const cache = getCache();
+    const files = await fg(config.tokenPaths, {
+      cwd: projectRoot,
+      absolute: true,
+      onlyFiles: true,
+      ignore: ["**/node_modules/**"],
+    });
+    
+    const cached = cache.get(projectRoot, config, files);
+    if (cached) {
+      return cached;
+    }
+  }
+  
   const tokenMap: TokenMap = new Map();
 
   // Resolve all globs relative to project root.
@@ -89,6 +106,12 @@ export async function loadAllTokens(
         `[mcp-ds] Error parsing ${relPath}: ${(err as Error).message}`,
       );
     }
+  }
+
+  // Store in cache if enabled
+  if (isCachingEnabled()) {
+    const cache = getCache();
+    cache.set(projectRoot, config, files, tokenMap);
   }
 
   return tokenMap;

@@ -29,6 +29,9 @@ export type TokenType =
   | "transition"
   | "custom";
 
+/** Token lifecycle state for smart filtering */
+export type TokenLifecycle = "draft" | "active" | "deprecated";
+
 /** A single resolved design token. */
 export interface DesignToken {
   /** Fully-qualified path, e.g. "color.primary.500". */
@@ -41,6 +44,8 @@ export interface DesignToken {
   type?: TokenType;
   /** Human-readable description / rationale. */
   description?: string;
+  /** Lifecycle state: draft (experimental), active (production-ready), deprecated (being phased out). */
+  lifecycle?: TokenLifecycle;
   /** Arbitrary metadata the team wants to attach. */
   extensions?: Record<string, unknown>;
   /** Deprecation info if this token is being phased out. */
@@ -171,6 +176,8 @@ export interface TokenSearchQuery {
   pathPrefix?: string;
   /** Return only deprecated tokens. */
   deprecated?: boolean;
+  /** Filter by lifecycle state. If omitted, excludes draft tokens by default (like Dialtone). Set to 'all' to include everything. */
+  lifecycle?: TokenLifecycle | "all";
   /** Return only tokens whose value matches this pattern (regex string). */
   valuePattern?: string;
 }

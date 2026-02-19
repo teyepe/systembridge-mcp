@@ -58,6 +58,9 @@ import {
   auditDesignTool,
   analyzeUiTool,
   auditFigmaUsageTool,
+  extractFigmaTokensTool,
+  validateFigmaTokensTool,
+  generateComponentDocsTool,
 } from "./tools/designer.js";
 import {
   analyzeScalesTool,
@@ -84,7 +87,7 @@ const config = loadConfig(PROJECT_ROOT);
 
 const server = new McpServer({
   name: "mcp-ds",
-  version: "0.4.0",
+  version: "0.5.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -753,6 +756,7 @@ server.tool(
   },
   async (args) => {
     const { formatted } = await generateRefactorScenariosTool(
+      PROJECT_ROOT,
       config,
       args.pathPrefix,
       args.riskTolerance,
@@ -818,15 +822,18 @@ server.tool(
       ),
   },
   async (args) => {
-    const { formatted } = await executeMigrationTool({
-      pathPrefix: args.pathPrefix,
-      scenarioId: args.scenarioId,
-      phaseNumber: args.phaseNumber,
-      dryRun: args.dryRun,
-      createSnapshot: args.createSnapshot,
-      stopOnError: args.stopOnError,
-      skipValidation: args.skipValidation,
-    });
+    const { formatted } = await executeMigrationTool(
+      PROJECT_ROOT,
+      config,
+      {
+        pathPrefix: args.pathPrefix,
+        scenarioId: args.scenarioId,
+        phaseNumber: args.phaseNumber,
+        dryRun: args.dryRun,
+        createSnapshot: args.createSnapshot,
+        stopOnError: args.stopOnError,
+        skipValidation: args.skipValidation,
+      });
     return { content: [{ type: "text" as const, text: formatted }] };
   },
 );
@@ -1070,7 +1077,7 @@ server.tool(
         "Optional Figma node ID to analyze. If omitted, analyzes entire file."
       ),
     figmaVariableDefs: z
-      .record(z.string())
+      .record(z.string(), z.string())
       .optional()
       .describe(
         "Variable definitions from mcp_figma_get_variable_defs. " +
@@ -1079,10 +1086,121 @@ server.tool(
   },
   async (args) => {
     const { formatted } = await auditFigmaUsageTool(
+      PROJECT_ROOT,
       config,
       args.figmaFileUrl,
       args.figmaNodeId,
       args.figmaVariableDefs,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- extract_figma_tokens -------------------------------------------------
+
+server.tool(
+  "extract_figma_tokens",
+  "Extract Figma variables and convert to standardized token formats (W3C, Tokens Studio, Style Dictionary). " +
+    "Takes Figma variable definitions from mcp_figma_get_variable_defs and transforms them into " +
+    "design tokens with proper type inference, collection mapping, and metadata. " +
+    "Useful for syncing Figma variables to your local token system.",
+  {
+    figmaVariableDefs: z
+      .record(z.string(), z.unknown())
+      .describe(
+        "Variable definitions from mcp_figma_get_variable_defs. " +
+        "Format: { 'variable/path': '#value', ... }"
+      ),
+    format: z
+      .enum(["w3c-design-tokens", "tokens-studio", "style-dictionary"])
+      .describe("Output format for tokens"),
+    includeMetadata: z
+      .boolean()
+      .describe(
+        "Include Figma-specific metadata (collection IDs, original names)"
+      ),
+    collections: z
+      .array(z.string())
+      .optional()
+      .describe("Filter to specific collection names (optional)"),
+  },
+  async (args) => {
+    const { formatted } = await extractFigmaTokensTool(
+      args as any,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- validate_figma_tokens ------------------------------------------------
+
+server.tool(
+  "validate_figma_tokens",
+  "Validate Figma variables against local token definitions. " +
+    "Checks for naming mismatches, type errors, missing mappings, and value discrepancies. " +
+    "Provides detailed validation report with errors, warnings, and sync status. " +
+    "Use strict mode to fail on any mismatch, or non-strict for warnings only.",
+  {
+    figmaVariableDefs: z
+      .record(z.string(), z.unknown())
+      .describe(
+        "Variable definitions from mcp_figma_get_variable_defs. " +
+        "Format: { 'variable/path': '#value', ... }"
+      ),
+    strict: z
+      .boolean()
+      .describe(
+        "Strict mode: treat all mismatches as errors. Non-strict: warnings only."
+      ),
+  },
+  async (args) => {
+    const { formatted } = await validateFigmaTokensTool(
+      args as any,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- generate_component_docs ----------------------------------------------
+
+server.tool(
+  "generate_component_docs",
+  "Generate comprehensive component documentation combining local tokens, Figma component data, " +
+    "and design system knowledge. Creates LLM+human-readable markdown with frontmatter, token references, " +
+    "code examples, and accessibility information. Perfect for design-to-development handoffs.",
+  {
+    componentNames: z
+      .array(z.string())
+      .describe("Component names to document (e.g., ['Button', 'Input'])"),
+    figmaComponentData: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe(
+        "Figma component data from mcp_figma_get_component_details (optional)"
+      ),
+    includeTokenRefs: z
+      .boolean()
+      .describe("Include token reference tables"),
+    includeCodeExamples: z
+      .boolean()
+      .describe("Include usage code examples"),
+    format: z
+      .enum(["markdown-llm", "mdx", "json-schema"])
+      .describe("Documentation output format"),
+    codeLanguage: z
+      .enum(["jsx", "tsx", "html", "vue", "svelte"])
+      .optional()
+      .describe("Language for code examples (default: jsx)"),
+  },
+  async (args) => {
+    const { formatted } = await generateComponentDocsTool(
+      args as any,
+      PROJECT_ROOT,
+      config,
     );
     return { content: [{ type: "text" as const, text: formatted }] };
   },

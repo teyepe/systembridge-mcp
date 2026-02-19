@@ -811,6 +811,7 @@ export interface GenerateRefactorScenariosResult {
  * @returns Migration scenarios with comparison and recommendations
  */
 export async function generateRefactorScenariosTool(
+  projectRoot: string,
   config: McpDsConfig,
   pathPrefix?: string,
   riskTolerance: "conservative" | "moderate" | "aggressive" = "moderate",
@@ -819,14 +820,14 @@ export async function generateRefactorScenariosTool(
   hoursPerWeek?: number,
 ): Promise<GenerateRefactorScenariosResult> {
   // Load and resolve tokens
-  const allTokens = await loadAllTokens(config);
-  const tokens = resolveReferences(allTokens);
+  const allTokens = await loadAllTokens(projectRoot, config);
+  resolveReferences(allTokens);
 
   // Filter if prefix provided
-  let filteredTokens = tokens;
+  let filteredTokens = allTokens;
   if (pathPrefix) {
     filteredTokens = new Map(
-      [...tokens].filter(([path]) => path.startsWith(pathPrefix))
+      [...allTokens].filter(([path]) => path.startsWith(pathPrefix))
     );
   }
 
@@ -951,7 +952,10 @@ export async function generateRefactorScenariosTool(
 // execute_migration — Execute staged migration with validation
 // ---------------------------------------------------------------------------
 
-export async function executeMigrationTool(args: {
+export async function executeMigrationTool(
+  projectRoot: string,
+  config: McpDsConfig,
+  args: {
   pathPrefix?: string;
   scenarioId?: string;
   phaseNumber?: number;
@@ -963,7 +967,7 @@ export async function executeMigrationTool(args: {
   const lines: string[] = [];
 
   // Load tokens
-  const { tokens, config } = await loadAllTokens(args.pathPrefix ?? "");
+  const tokens = await loadAllTokens(projectRoot, config);
   resolveReferences(tokens);
 
   // Run audit
@@ -971,14 +975,13 @@ export async function executeMigrationTool(args: {
 
   // Assess risk
   const riskProfile = assessMigrationRisk(
-    audit,
     tokens,
-    { coverage: [], recommendations: [] }, // Placeholder
+    audit.dependencies,
+    { riskTolerance: "moderate" }
   );
 
   // Generate scenarios
   const scenarios = generateMigrationScenarios(
-    tokens,
     audit,
     riskProfile,
     { approaches: ["conservative", "progressive", "comprehensive"] },

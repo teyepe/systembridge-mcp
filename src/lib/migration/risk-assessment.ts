@@ -193,13 +193,13 @@ function assessTokenRisks(
   dependencies: DependencyGraph,
 ): TokenRisk[] {
   const risks: TokenRisk[] = [];
-  const nodeMap = new Map(dependencies.nodes.map(n => [n.id, n]));
+  const nodeMap = new Map(dependencies.nodes.map(n => [n.path, n]));
 
   for (const [path, token] of tokens) {
     const node = nodeMap.get(path);
-    const referenceCount = node?.referenceCount ?? 0;
+    const referenceCount = node?.incomingRefs ?? 0;
     const depth = node?.depth ?? 0;
-    const isPrimitive = node?.type === "primitive";
+    const isPrimitive = node?.nodeType === "primitive";
 
     const isBrandToken = isBrandCritical(path, token);
     const isAccessibilityCritical = isA11yCritical(path);
@@ -244,13 +244,19 @@ function assessTokenRisks(
     }
 
     // Factor 6: Broken references are high risk
-    if (node?.hasUnresolvedRefs) {
+    const hasUnresolvedRefs = dependencies.issues.some(
+      i => i.type === "unresolved" && i.tokenPaths.includes(path)
+    );
+    if (hasUnresolvedRefs) {
       riskScore += 40;
       reasons.push("Has unresolved references");
     }
 
     // Factor 7: Circular dependencies
-    if (node?.hasCircularRef) {
+    const hasCircularRef = dependencies.issues.some(
+      i => i.type === "circular" && i.tokenPaths.includes(path)
+    );
+    if (hasCircularRef) {
       riskScore += 35;
       reasons.push("Involved in circular dependency");
     }
@@ -302,7 +308,7 @@ function assessUsageRisk(
   }
 
   // Isolated tokens (low risk, but signals gaps)
-  const isolatedCount = dependencies.metrics.isolatedTokens.length;
+  const isolatedCount = dependencies.metrics.isolatedCount;
   if (isolatedCount > tokenRisks.length * 0.2) {
     score += 15;
     factors.push(`${isolatedCount} isolated token(s) may be orphaned`);
@@ -376,14 +382,14 @@ function assessStructuralRisk(
   }
 
   // Broken references
-  const unresolvedCount = dependencies.issues.filter(i => i.type === "unresolved-reference").length;
+  const unresolvedCount = dependencies.issues.filter(i => i.type === "unresolved").length;
   if (unresolvedCount > 0) {
     score += Math.min(40, unresolvedCount * 5);
     factors.push(`${unresolvedCount} unresolved reference(s)`);
   }
 
   // Circular dependencies
-  const circularCount = dependencies.issues.filter(i => i.type === "circular-dependency").length;
+  const circularCount = dependencies.issues.filter(i => i.type === "circular").length;
   if (circularCount > 0) {
     score += Math.min(30, circularCount * 10);
     factors.push(`${circularCount} circular dependenc${circularCount === 1 ? 'y' : 'ies'}`);
@@ -477,8 +483,8 @@ function assessReadiness(
 
   // Dependency clarity: clean dependency graph?
   const hasIssues = dependencies.issues.length > 0;
-  const issueRatio = dependencies.metrics.totalNodes > 0
-    ? dependencies.issues.length / dependencies.metrics.totalNodes
+  const issueRatio = dependencies.metrics.totalTokens > 0
+    ? dependencies.issues.length / dependencies.metrics.totalTokens
     : 0;
   const dependencyClarity = Math.max(0, 1 - issueRatio);
 

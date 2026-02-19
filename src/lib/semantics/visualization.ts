@@ -142,7 +142,7 @@ export function visualizeCoverageMatrix(
 
   // Build table header
   const propertyClasses = ALL_PROPERTY_CLASSES.slice(0, 6); // Limit for readability
-  const header = ["Context", ...propertyClasses.map(pc => pc.substring(0, 8))];
+  const header = ["Context", ...propertyClasses.map(pc => pc.id.substring(0, 8))];
   const separator = header.map(h => "-".repeat(h.length));
 
   lines.push(`| ${header.join(" | ")} |`);
@@ -150,11 +150,12 @@ export function visualizeCoverageMatrix(
 
   // Build table rows
   for (const context of contexts) {
-    const row = [context.substring(0, 10)];
+    const row = [typeof context === 'string' ? context.substring(0, 10) : context.id.substring(0, 10)];
     
     for (const propertyClass of propertyClasses) {
+      const contextId = typeof context === 'string' ? context : context.id;
       const cell = coverage.matrix.find(
-        c => c.uxContext === context && c.propertyClass === propertyClass
+        c => c.uxContext === contextId && c.propertyClass === propertyClass.id
       );
       
       if (!cell) {

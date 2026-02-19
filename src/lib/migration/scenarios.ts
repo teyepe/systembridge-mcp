@@ -601,12 +601,12 @@ function generateCriticalFixActions(
 
   // Fix circular dependencies
   const circularIssues = auditResult.dependencies.issues.filter(
-    i => i.type === "circular-dependency"
+    i => i.type === "circular"
   );
   if (circularIssues.length > 0) {
     actions.push({
       type: "restructure",
-      targets: circularIssues.flatMap(i => i.tokens),
+      targets: circularIssues.flatMap(i => i.tokenPaths),
       description: `Break ${circularIssues.length} circular dependenc${circularIssues.length === 1 ? 'y' : 'ies'}`,
       risk: "high",
       automated: false,
@@ -616,12 +616,12 @@ function generateCriticalFixActions(
 
   // Fix unresolved references
   const unresolvedIssues = auditResult.dependencies.issues.filter(
-    i => i.type === "unresolved-reference"
+    i => i.type === "unresolved"
   );
   if (unresolvedIssues.length > 0) {
     actions.push({
       type: "update-references",
-      targets: unresolvedIssues.flatMap(i => i.tokens),
+      targets: unresolvedIssues.flatMap(i => i.tokenPaths),
       description: `Resolve ${unresolvedIssues.length} broken reference(s)`,
       risk: "critical",
       automated: true,
@@ -639,16 +639,16 @@ function generateLowRiskRenameActions(
   const actions: MigrationAction[] = [];
 
   // Rename isolated tokens (low risk since no dependencies)
-  const isolatedTokens = auditResult.dependencies.metrics.isolatedTokens;
-  const lowRiskIsolated = isolatedTokens.filter(token => {
-    const tokenRisk = riskProfile.tokenRisks.find(tr => tr.path === token);
+  const isolatedNodes = auditResult.dependencies.nodes.filter(n => n.isolated);
+  const lowRiskIsolated = isolatedNodes.filter(node => {
+    const tokenRisk = riskProfile.tokenRisks.find(tr => tr.path === node.path);
     return tokenRisk && tokenRisk.level === "low";
   });
 
   if (lowRiskIsolated.length > 0) {
     actions.push({
       type: "rename",
-      targets: lowRiskIsolated.slice(0, 10), // Limit to first 10
+      targets: lowRiskIsolated.slice(0, 10).map(n => n.path), // Limit to first 10, extract paths
       description: `Rename ${Math.min(10, lowRiskIsolated.length)} isolated token(s) to follow convention`,
       risk: "low",
       automated: true,

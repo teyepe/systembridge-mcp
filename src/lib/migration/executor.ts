@@ -202,7 +202,9 @@ export async function executePhase(
   }
 
   phaseExecution.endTime = new Date();
-  phaseExecution.duration = phaseExecution.endTime.getTime() - phaseExecution.startTime.getTime();
+  if (phaseExecution.startTime) {
+    phaseExecution.duration = phaseExecution.endTime.getTime() - phaseExecution.startTime.getTime();
+  }
 
   return phaseExecution;
 }
@@ -320,7 +322,7 @@ async function executeRename(
 
       // Rename token
       tokens.delete(oldPath);
-      tokens.set(newPath, { ...token, $path: newPath });
+      tokens.set(newPath, { ...token, path: newPath });
     }
 
     operations.push({
@@ -474,7 +476,7 @@ async function executeRestructure(
         }
 
         tokens.delete(path);
-        tokens.set(newPath, { ...token, $path: newPath });
+        tokens.set(newPath, { ...token, path: newPath });
       }
 
       operations.push({
@@ -565,7 +567,7 @@ async function executeCreate(
       value: "#TODO",
       type: "color",
       description: `Created by migration: ${action.description}`,
-      $path: path,
+      path: path,
     };
 
     if (!options.dryRun) {

@@ -8,7 +8,7 @@
 import type { DesignToken } from "../types.js";
 import type { MigrationExecution, PhaseExecution } from "./executor.js";
 import { parseSemanticPath } from "../semantics/ontology.js";
-import { checkAccessibility } from "../color/index.js";
+import { computeContrast } from "../color/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -378,13 +378,14 @@ async function validateAccessibility(
       const bgColor = bgToken.resolvedValue ?? bgToken.value;
 
       // Check contrast
-      const a11y = checkAccessibility(String(fgColor), String(bgColor));
+      const contrastResult = computeContrast(String(fgColor), String(bgColor), "wcag21");
+      const wcag21 = contrastResult.wcag21;
 
-      if (!a11y.wcag.aa.normal) {
+      if (wcag21 && (wcag21.levelNormal === "fail" || wcag21.levelNormal === "AA")) {
         issues.push({
           severity: "warning",
           tokenPath: fgPath,
-          description: `Insufficient contrast with ${bgPath} (ratio: ${a11y.contrastRatio.toFixed(2)}:1)`,
+          description: `Insufficient contrast with ${bgPath} (ratio: ${wcag21.ratio.toFixed(2)}:1, level: ${wcag21.levelNormal})`,
           suggestion: "Adjust colors to meet WCAG AA (4.5:1 for normal text)",
         });
       }

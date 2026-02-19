@@ -815,14 +815,15 @@ export interface AuditFigmaUsageResult {
  * @returns Usage analysis and cross-reference report
  */
 export async function auditFigmaUsageTool(
+  projectRoot: string,
   config: McpDsConfig,
   figmaFileUrl: string,
   figmaNodeId?: string,
   figmaVariableDefs?: Record<string, string>,
 ): Promise<AuditFigmaUsageResult> {
   // Load local tokens
-  const allTokens = await loadAllTokens(config);
-  const tokens = resolveReferences(allTokens);
+  const allTokens = await loadAllTokens(projectRoot, config);
+  resolveReferences(allTokens);
 
   // Import Figma usage analyzer functions
   const {
@@ -876,15 +877,15 @@ Then pass the result as \`figmaVariableDefs\` parameter to this tool.
   const figmaVariables = parseFigmaVariables(figmaVariableDefs);
 
   // Map Figma variables to local tokens
-  const mappings = mapVariablesToTokens(figmaVariables, tokens);
+  const mappings = mapVariablesToTokens(figmaVariables, allTokens);
 
   // Analyze usage
-  const usageMap = analyzeVariableUsage(figmaVariables, tokens, mappings);
+  const usageMap = analyzeVariableUsage(figmaVariables, allTokens, mappings);
   usageMap.fileKey = extractFileKey(figmaFileUrl);
   usageMap.nodeId = figmaNodeId ?? "root";
 
   // Cross-reference with local tokens
-  const crossReference = correlateTokensWithFigma(tokens, figmaVariables, mappings);
+  const crossReference = correlateTokensWithFigma(allTokens, figmaVariables, mappings);
 
   // Generate recommendations
   const recommendations: string[] = [];
@@ -1049,4 +1050,305 @@ function scoreToEmoji(score: number): string {
   if (score >= 70) return "🟡 **Good** — some gaps to address before handoff.";
   if (score >= 50) return "🟠 **Needs work** — significant gaps in token coverage.";
   return "🔴 **Critical** — major gaps in token coverage and structure.";
+}
+
+// ---------------------------------------------------------------------------
+// extract_figma_tokens — Extract Figma variables to standard token format
+// ---------------------------------------------------------------------------
+
+export interface ExtractFigmaTokensResult {
+  formatted: string;
+  json: {
+    tokens: Array<{
+      path: string;
+      value: unknown;
+      type?: string;
+    }>;
+    summary: {
+      total: number;
+      byType: Record<string, number>;
+      byCollection: Record<string, number>;
+    };
+    mappings: Array<{
+      collectionId: string;
+      collectionName: string;
+      tokenPaths: string[];
+    }>;
+    warnings: string[];
+  };
+}
+
+export async function extractFigmaTokensTool(
+  args: {
+    figmaVariableDefs: Record<string, unknown>;
+    format: "w3c-design-tokens" | "tokens-studio" | "style-dictionary";
+    includeMetadata: boolean;
+    collections?: string[];
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<ExtractFigmaTokensResult> {
+  const {
+    extractFigmaTokens,
+    tokensToW3C,
+    tokensToTokensStudio,
+  } = await import("../lib/figma/extractor.js");
+
+  // Extract tokens
+  const result = await extractFigmaTokens({
+    figmaVariableDefs: args.figmaVariableDefs,
+    format: args.format,
+    includeMetadata: args.includeMetadata,
+    collections: args.collections,
+  });
+
+  // Format output
+  const lines: string[] = [];
+  lines.push("# Figma Token Extraction");
+  lines.push("");
+  lines.push(`**Total Tokens:** ${result.summary.total}`);
+  lines.push(`**Format:** ${args.format}`);
+  lines.push("");
+
+  // Summary by type
+  lines.push("## By Type");
+  lines.push("");
+  for (const [type, count] of Object.entries(result.summary.byType)) {
+    lines.push(`- **${type}:** ${count}`);
+  }
+  lines.push("");
+
+  // Summary by collection
+  lines.push("## By Collection");
+  lines.push("");
+  for (const [collection, count] of Object.entries(result.summary.byCollection)) {
+    lines.push(`- **${collection}:** ${count}`);
+  }
+  lines.push("");
+
+  // Collection mappings
+  if (result.mappings.length > 0) {
+    lines.push("## Collection Mappings");
+    lines.push("");
+    for (const mapping of result.mappings) {
+      lines.push(`### ${mapping.collectionName}`);
+      lines.push(`- **Collection ID:** \`${mapping.collectionId}\``);
+      lines.push(`- **Tokens:** ${mapping.tokenPaths.length}`);
+      lines.push("");
+    }
+  }
+
+  // Warnings
+  if (result.warnings.length > 0) {
+    lines.push("## Warnings");
+    lines.push("");
+    for (const warning of result.warnings) {
+      lines.push(`- ${warning}`);
+    }
+    lines.push("");
+  }
+
+  // Show sample tokens
+  if (result.tokens.length > 0) {
+    lines.push("## Sample Tokens (first 10)");
+    lines.push("");
+    lines.push("```json");
+    const sample = result.tokens.slice(0, 10);
+    
+    // Convert to requested format for display
+    let formatted: Record<string, unknown>;
+    if (args.format === "w3c-design-tokens") {
+      formatted = tokensToW3C(sample);
+    } else if (args.format === "tokens-studio") {
+      formatted = tokensToTokensStudio(sample);
+    } else {
+      // Style Dictionary format (simple flat structure)
+      formatted = {};
+      for (const token of sample) {
+        formatted[token.path] = token.value;
+      }
+    }
+    
+    lines.push(JSON.stringify(formatted, null, 2));
+    lines.push("```");
+    lines.push("");
+  }
+
+  lines.push("---");
+  lines.push("");
+  lines.push("To save these tokens to a file, copy the JSON structure above.");
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      tokens: result.tokens.map(t => ({
+        path: t.path,
+        value: t.value,
+        type: t.type,
+      })),
+      summary: result.summary,
+      mappings: result.mappings,
+      warnings: result.warnings,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// validate_figma_tokens — Validate Figma variables against local tokens
+// ---------------------------------------------------------------------------
+
+export interface ValidateFigmaTokensResult {
+  formatted: string;
+  json: {
+    valid: boolean;
+    syncStatus: string;
+    syncScore: number;
+    errors: Array<{ severity: string; category: string; message: string }>;
+    warnings: Array<{ severity: string; category: string; message: string }>;
+    stats: {
+      totalFigmaVariables: number;
+      totalLocalTokens: number;
+      matched: number;
+      mismatched: number;
+      missingInFigma: number;
+      missingLocally: number;
+    };
+  };
+}
+
+export async function validateFigmaTokensTool(
+  args: {
+    figmaVariableDefs: Record<string, unknown>;
+    strict: boolean;
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<ValidateFigmaTokensResult> {
+  const { validateFigmaTokens, formatValidationReport } = await import(
+    "../lib/figma/validator.js"
+  );
+
+  // Load local tokens
+  const tokenMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(tokenMap);
+
+  // Validate
+  const result = await validateFigmaTokens({
+    figmaVariableDefs: args.figmaVariableDefs,
+    localTokens: tokenMap,
+    strict: args.strict,
+  });
+
+  // Format output
+  const formatted = formatValidationReport(result);
+
+  return {
+    formatted,
+    json: {
+      valid: result.valid,
+      syncStatus: result.syncStatus,
+      syncScore: result.syncScore,
+      errors: result.errors.map(e => ({
+        severity: e.severity,
+        category: e.category,
+        message: e.message,
+      })),
+      warnings: result.warnings.map(w => ({
+        severity: w.severity,
+        category: w.category,
+        message: w.message,
+      })),
+      stats: result.stats,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// generate_component_docs — Generate component documentation
+// ---------------------------------------------------------------------------
+
+export interface GenerateComponentDocsResult {
+  formatted: string;
+  json: {
+    componentsDocumented: number;
+    tokensReferenced: number;
+    examplesGenerated: number;
+    docs: Array<{
+      name: string;
+      category: string;
+      tokens: Array<{
+        path: string;
+        type: string;
+        value: string;
+      }>;
+    }>;
+  };
+}
+
+export async function generateComponentDocsTool(
+  args: {
+    componentNames: string[];
+    figmaComponentData?: Record<string, unknown>;
+    includeTokenRefs: boolean;
+    includeCodeExamples: boolean;
+    format: "markdown-llm" | "mdx" | "json-schema";
+    codeLanguage?: "jsx" | "tsx" | "html" | "vue" | "svelte";
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<GenerateComponentDocsResult> {
+  const {
+    generateComponentDocs,
+    formatDocumentationSummary,
+  } = await import("../lib/figma/doc-generator.js");
+
+  // Load local tokens
+  const tokenMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(tokenMap);
+
+  // Generate documentation
+  const result = await generateComponentDocs({
+    componentNames: args.componentNames,
+    figmaComponentData: args.figmaComponentData as any,
+    localTokens: tokenMap,
+    includeTokenRefs: args.includeTokenRefs,
+    includeCodeExamples: args.includeCodeExamples,
+    format: args.format,
+    codeLanguage: args.codeLanguage || "jsx",
+  });
+
+  // Format output
+  const lines: string[] = [];
+  lines.push(formatDocumentationSummary(result));
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  lines.push("## Generated Documentation");
+  lines.push("");
+
+  // Include full documentation for each component
+  for (const doc of result.docs) {
+    lines.push(doc.content);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      componentsDocumented: result.summary.componentsDocumented,
+      tokensReferenced: result.summary.tokensReferenced,
+      examplesGenerated: result.summary.examplesGenerated,
+      docs: result.docs.map(d => ({
+        name: d.name,
+        category: d.metadata.category,
+        tokens: d.metadata.tokens.map(t => ({
+          path: t.path,
+          type: t.type,
+          value: t.value,
+        })),
+      })),
+    },
+  };
 }

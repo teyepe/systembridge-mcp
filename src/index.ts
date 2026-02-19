@@ -76,6 +76,7 @@ import {
   auditScaleComplianceTool,
   generateFluidScaleTool,
 } from "./tools/scales.js";
+import { generateMakeGuidelinesTool } from "./tools/figma-make.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -1275,6 +1276,17 @@ server.tool(
   generateFluidScaleTool.inputSchema.shape,
   async (args) => {
     return await generateFluidScaleTool.execute(args as any);
+  },
+);
+
+// ---- generate_make_guidelines ---------------------------------------------
+
+server.tool(
+  generateMakeGuidelinesTool.name,
+  generateMakeGuidelinesTool.description,
+  generateMakeGuidelinesTool.inputSchema.shape,
+  async (args) => {
+    return await generateMakeGuidelinesTool.execute(args as any, PROJECT_ROOT, config);
   },
 );
 

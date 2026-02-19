@@ -133,5 +133,5 @@ export function getCache(ttlMs?: number): TokenCache {
  * Check if caching is enabled (via environment variable)
  */
 export function isCachingEnabled(): boolean {
-  return process.env.MCP_DS_CACHE !== "false";
+  return process.env.SYSTEMBRIDGE_MCP_CACHE !== "false";
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Performance benchmarking script for mcp-ds
+ * Performance benchmarking script for systembridge-mcp
  * 
  * Measures search performance with and without caching to demonstrate
  * the impact of Phase 2 optimizations.
@@ -31,7 +31,7 @@ const colors = {
 
 async function main() {
   console.log(
-    `${colors.bright}${colors.cyan}mcp-ds Performance Benchmark${colors.reset}\n`,
+    `${colors.bright}${colors.cyan}systembridge-mcp Performance Benchmark${colors.reset}\n`,
   );
   console.log(`Project root: ${colors.dim}${PROJECT_ROOT}${colors.reset}\n`);
 
@@ -50,7 +50,7 @@ async function main() {
   );
 
   // Benchmark WITHOUT caching (clear cache + disable it temporarily)
-  process.env.MCP_DS_CACHE = "false";
+  process.env.SYSTEMBRIDGE_MCP_CACHE = "false";
   getCache().clear();
 
   const withoutCacheResult = await benchmark(
@@ -66,7 +66,7 @@ async function main() {
   console.log(formatBenchmarkResult(withoutCacheResult));
 
   // Benchmark WITH caching (enable cache)
-  process.env.MCP_DS_CACHE = "true";
+  process.env.SYSTEMBRIDGE_MCP_CACHE = "true";
   getCache().clear(); // Start with empty cache
 
   const withCacheResult = await benchmark(

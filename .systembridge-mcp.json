@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/your-org/mcp-ds/main/schema.json",
+  "$schema": "https://raw.githubusercontent.com/your-org/systembridge-mcp/main/schema.json",
   "tokenPaths": [
     "example-tokens/**/*.json"
   ],

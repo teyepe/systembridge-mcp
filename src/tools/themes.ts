@@ -68,7 +68,7 @@ export function listDimensionsTool(config: McpDsConfig): ListDimensionsResult {
   if (!registry) {
     return {
       dimensions: [],
-      formatted: "No dimensions configured. Add a `theming.dimensions` array to your mcp-ds config.",
+      formatted: "No dimensions configured. Add a `theming.dimensions` array to your systembridge-mcp config.",
     };
   }
 

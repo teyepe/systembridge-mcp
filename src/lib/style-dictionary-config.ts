@@ -2,7 +2,7 @@
  * Style Dictionary configuration builder.
  *
  * Generates SD v4 configs for common platforms.  Teams can override
- * via their own config file referenced in mcp-ds.config.json.
+ * via their own config file referenced in systembridge-mcp.config.json.
  */
 import * as path from "node:path";
 

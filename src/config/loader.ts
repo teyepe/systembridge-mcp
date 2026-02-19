@@ -11,9 +11,9 @@ import type { McpDsConfig } from "../lib/types.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 
 const CONFIG_FILENAMES = [
-  "mcp-ds.config.json",
-  "mcp-ds.config.json5",
-  ".mcp-ds.json",
+  "systembridge-mcp.config.json",
+  "systembridge-mcp.config.json5",
+  ".systembridge-mcp.json",
 ];
 
 /**

@@ -5,12 +5,12 @@
  * Uses `$value`, `$type`, `$description` with `$` prefix convention.
  *
  * Extended to parse `$extensions` structured metadata including:
- *   - `com.mcp-ds.conditions` — conditional values for multi-dimensional theming
- *   - `com.mcp-ds.brand-meta` — brand-specific metadata
- *   - `com.mcp-ds.density`    — density-specific metadata
- *   - `com.mcp-ds.factory`    — generation metadata for system templates
- *   - `com.mcp-ds.deprecated` — structured deprecation info
- *   - `com.mcp-ds.figma`      — Figma collection / variable mapping
+ *   - `com.systembridge-mcp.conditions` — conditional values for multi-dimensional theming
+ *   - `com.systembridge-mcp.brand-meta` — brand-specific metadata
+ *   - `com.systembridge-mcp.density`    — density-specific metadata
+ *   - `com.systembridge-mcp.factory`    — generation metadata for system templates
+ *   - `com.systembridge-mcp.deprecated` — structured deprecation info
+ *   - `com.systembridge-mcp.figma`      — Figma collection / variable mapping
  *
  * Also parses Phase 3 metadata fields:
  *   - `$lifecycle` — draft | active | deprecated
@@ -42,8 +42,8 @@ function extractDeprecation(
   obj: Record<string, unknown>,
   extensions?: Record<string, unknown>,
 ): DesignToken["deprecated"] {
-  // Check $extensions.com.mcp-ds.deprecated first (richest)
-  const extDep = extensions?.["com.mcp-ds.deprecated"];
+  // Check $extensions.com.systembridge-mcp.deprecated first (richest)
+  const extDep = extensions?.["com.systembridge-mcp.deprecated"];
   if (isPlainObject(extDep)) {
     return {
       message: (extDep["message"] as string) ?? "Deprecated",

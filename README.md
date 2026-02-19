@@ -1,4 +1,4 @@
-# mcp-ds – Design System MCP Server
+# systembridge-mcp – System Bridge MCP Server
 
 > An AI-native Model Context Protocol (MCP) server that gives LLMs and agents deep knowledge of design systems and design tokens, enabling intelligent design system evolution, token analysis, and designer-to-developer handoffs.
 
@@ -10,7 +10,7 @@
 
 ## 🎯 What is this?
 
-**mcp-ds** is an MCP server that teaches AI assistants (like Claude, GPT, or custom agents) how to work with your design system. Instead of just answering questions about design, the AI can:
+**systembridge-mcp** is an MCP server that teaches AI assistants (like Claude, GPT, or custom agents) how to work with your design system. Instead of just answering questions about design, the AI can:
 
 - **Understand your design tokens** — browse, search, and explain your color palettes, spacing scales, and typography
 - **Plan new features from scratch** — describe what you need ("a login page"), get back the components and tokens required
@@ -38,8 +38,8 @@
 
 ```bash
 # Clone or download this repository
-git clone https://github.com/yourusername/mcp-ds.git
-cd mcp-ds
+git clone https://github.com/yourusername/systembridge-mcp.git
+cd systembridge-mcp
 
 # Install dependencies
 npm install
@@ -57,7 +57,7 @@ npm link
    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-2. Add the mcp-ds server using one of these methods:
+2. Add the systembridge-mcp server using one of these methods:
 
 #### Option A: Using npm link (Recommended for testing)
 
@@ -66,10 +66,10 @@ If you ran `npm link`, you can reference it by command name:
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds",
+    "systembridge-mcp": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/path/to/your/design/tokens"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/your/design/tokens"
       }
     }
   }
@@ -81,11 +81,11 @@ If you ran `npm link`, you can reference it by command name:
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-ds/dist/index.js"],
+      "args": ["/absolute/path/to/systembridge-mcp/dist/index.js"],
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/path/to/your/design/tokens"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/your/design/tokens"
       }
     }
   }
@@ -94,25 +94,25 @@ If you ran `npm link`, you can reference it by command name:
 
 #### Option C: Using current working directory
 
-If you don't set `MCP_DS_PROJECT_ROOT`, the server will use the directory where it's launched. This is useful if you want to run it from your token directory:
+If you don't set `SYSTEMBRIDGE_MCP_PROJECT_ROOT`, the server will use the directory where it's launched. This is useful if you want to run it from your token directory:
 
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-ds/dist/index.js"],
+      "args": ["/absolute/path/to/systembridge-mcp/dist/index.js"],
       "cwd": "/path/to/your/design/tokens"
     }
   }
 }
 ```
 
-> **💡 Tip:** For testing with the included example tokens, use `MCP_DS_PROJECT_ROOT` pointing to the mcp-ds repository root, or omit it entirely to use the current directory.
+> **💡 Tip:** For testing with the included example tokens, use `SYSTEMBRIDGE_MCP_PROJECT_ROOT` pointing to the systembridge-mcp repository root, or omit it entirely to use the current directory.
 
 3. Restart Claude Desktop
 
-4. Look for the 🔌 MCP icon — you should see **32 tools** available from mcp-ds
+4. Look for the 🔌 MCP icon — you should see **32 tools** available from systembridge-mcp
 
 ---
 
@@ -279,7 +279,7 @@ Seamless interoperability with Figma variables via the Figma MCP server:
 **Prerequisites:**
 - Install and configure [mcp-figma](https://github.com/modelcontextprotocol/servers/tree/main/src/figma) MCP server
 - Use `mcp_figma_get_variable_defs` to fetch Figma variables
-- Pass the variable definitions to the mcp-ds tools above
+- Pass the variable definitions to the systembridge-mcp tools above
 
 **Workflow:**
 ```
@@ -312,7 +312,7 @@ The server includes **7 pre-built prompts** that orchestrate multiple tools into
 
 ### Token Ontology
 
-mcp-ds uses a structured semantic token naming model:
+systembridge-mcp uses a structured semantic token naming model:
 
 ```
 {propertyClass}.{uxContext}.{intent}[.{state}][.{modifier}]
@@ -359,7 +359,7 @@ Patterns map to component inventories and token requirements.
 
 ## 📂 Configuration
 
-The server looks for `mcp-ds.config.json` in your working directory:
+The server looks for `systembridge-mcp.config.json` in your working directory:
 
 ```json
 {
@@ -408,7 +408,7 @@ Place your token files anywhere — configure paths via `tokenPaths` glob patter
 While this MCP server focuses on token intelligence, it pairs well with:
 
 - **Figma Tokens Studio** — Sync tokens between Figma and code
-- **Figma Variables** — Export variables to JSON, analyze with mcp-ds
+- **Figma Variables** — Export variables to JSON, analyze with systembridge-mcp
 - **Style Dictionary** — Transform tokens to platform code (handled natively)
 
 ### Designer Workflow
@@ -425,7 +425,7 @@ Designers don't need to write code. Just:
 
 1. Open Claude Desktop
 2. Describe what you see or want
-3. Claude uses mcp-ds tools to analyze and respond
+3. Claude uses systembridge-mcp tools to analyze and respond
 4. Copy/paste token JSON when needed (Claude will format it)
 
 ---
@@ -484,16 +484,16 @@ See [AGENT_HANDOFF.md](./AGENT_HANDOFF.md) for architecture details.
 
 The server automatically checks for updates on startup by querying the npm registry. This ensures you're running the latest version with bug fixes and new features. If an update is available, you'll see a friendly notification with the upgrade command.
 
-To disable version checking, set the `MCP_DS_SKIP_VERSION_CHECK` environment variable:
+To disable version checking, set the `SYSTEMBRIDGE_MCP_SKIP_VERSION_CHECK` environment variable:
 
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["/path/to/mcp-ds/dist/index.js"],
+      "args": ["/path/to/systembridge-mcp/dist/index.js"],
       "env": {
-        "MCP_DS_SKIP_VERSION_CHECK": "true"
+        "SYSTEMBRIDGE_MCP_SKIP_VERSION_CHECK": "true"
       }
     }
   }
@@ -598,16 +598,16 @@ The server implements intelligent in-memory caching to reduce file I/O on repeat
 
 **Configuration:**
 
-Caching is enabled by default. To disable it, set the `MCP_DS_CACHE` environment variable:
+Caching is enabled by default. To disable it, set the `SYSTEMBRIDGE_MCP_CACHE` environment variable:
 
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["/path/to/mcp-ds/dist/index.js"],
+      "args": ["/path/to/systembridge-mcp/dist/index.js"],
       "env": {
-        "MCP_DS_CACHE": "false"
+        "SYSTEMBRIDGE_MCP_CACHE": "false"
       }
     }
   }
@@ -695,7 +695,7 @@ Tokens can include inline usage examples and enriched metadata to guide develope
 
 ### Project-Scoped Configuration (Phase 3)
 
-Create a `.mcp-ds.json` file in your project root for team-wide settings:
+Create a `.systembridge-mcp.json` file in your project root for team-wide settings:
 
 ```json
 {
@@ -791,8 +791,8 @@ Inspired by:
 
 ## 💬 Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/mcp-ds/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/mcp-ds/discussions)
+- **Issues:** [GitHub Issues](https://github.com/yourusername/systembridge-mcp/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/yourusername/systembridge-mcp/discussions)
 - **MCP Community:** [Discord](https://discord.gg/mcp)
 
 ---

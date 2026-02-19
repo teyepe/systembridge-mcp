@@ -160,7 +160,7 @@ function convertToDesignToken(
   // Add Figma metadata if requested
   if (includeMetadata) {
     token.extensions = {
-      "com.mcp-ds.figma": {
+      "com.systembridge-mcp.figma": {
         originalName: variable.name,
         collection: collectionName,
         rawValue: variable.value,

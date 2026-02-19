@@ -130,10 +130,10 @@ export function compareBenchmarks(
  */
 export function logPerformance(label: string, durationMs: number): void {
   if (durationMs < 10) {
-    console.error(`[mcp-ds] ⚡ ${label}: ${durationMs.toFixed(2)}ms`);
+    console.error(`[systembridge-mcp] ⚡ ${label}: ${durationMs.toFixed(2)}ms`);
   } else if (durationMs < 100) {
-    console.error(`[mcp-ds] ✓ ${label}: ${durationMs.toFixed(2)}ms`);
+    console.error(`[systembridge-mcp] ✓ ${label}: ${durationMs.toFixed(2)}ms`);
   } else {
-    console.error(`[mcp-ds] ⏱️  ${label}: ${durationMs.toFixed(2)}ms`);
+    console.error(`[systembridge-mcp] ⏱️  ${label}: ${durationMs.toFixed(2)}ms`);
   }
 }

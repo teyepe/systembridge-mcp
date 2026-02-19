@@ -11,10 +11,10 @@ Location: `~/Library/Application Support/Code/User/mcp.json` (macOS)
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds",
+    "systembridge-mcp": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "${workspaceFolder}"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "${workspaceFolder}"
       }
     }
   }
@@ -26,11 +26,11 @@ Location: `~/Library/Application Support/Code/User/mcp.json` (macOS)
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["/Users/tasos.dervenagas/Documents/repos/mcp-ds/dist/index.js"],
+      "args": ["/Users/tasos.dervenagas/Documents/repos/systembridge-mcp/dist/index.js"],
       "env": {
-        "MCP_DS_PROJECT_ROOT": "${workspaceFolder}"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "${workspaceFolder}"
       }
     }
   }
@@ -46,10 +46,10 @@ Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (mac
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds",
+    "systembridge-mcp": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/path/to/your/design-tokens"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/your/design-tokens"
       }
     }
   }
@@ -61,10 +61,10 @@ Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (mac
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds",
+    "systembridge-mcp": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/mcp-ds"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/systembridge-mcp"
       }
     }
   }
@@ -76,8 +76,8 @@ Location: `~/Library/Application Support/Claude/claude_desktop_config.json` (mac
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds"
+    "systembridge-mcp": {
+      "command": "systembridge-mcp"
     }
   }
 }
@@ -90,16 +90,16 @@ You can configure multiple instances pointing to different token projects:
 ```json
 {
   "mcpServers": {
-    "mcp-ds-project-a": {
-      "command": "mcp-ds",
+    "systembridge-mcp-project-a": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/path/to/project-a/tokens"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/project-a/tokens"
       }
     },
-    "mcp-ds-project-b": {
-      "command": "mcp-ds",
+    "systembridge-mcp-project-b": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/path/to/project-b/design-system"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/project-b/design-system"
       }
     }
   }
@@ -113,11 +113,11 @@ For Windows users, use double backslashes or forward slashes:
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
+    "systembridge-mcp": {
       "command": "node",
-      "args": ["C:/Users/YourName/mcp-ds/dist/index.js"],
+      "args": ["C:/Users/YourName/systembridge-mcp/dist/index.js"],
       "env": {
-        "MCP_DS_PROJECT_ROOT": "C:/Projects/design-tokens"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "C:/Projects/design-tokens"
       }
     }
   }

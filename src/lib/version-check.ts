@@ -33,17 +33,17 @@ export async function checkVersion(
     if (currentVersion !== latestVersion) {
       console.error("");
       console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.error("⚠️  mcp-ds Update Available");
+      console.error("⚠️  systembridge-mcp Update Available");
       console.error(`   Current: v${currentVersion}`);
       console.error(`   Latest:  v${latestVersion}`);
       console.error("");
       console.error("   To update:");
-      console.error("   npm install -D mcp-ds@latest");
+      console.error("   npm install -D systembridge-mcp@latest");
       console.error("   (then restart your MCP client)");
       console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.error("");
     } else {
-      console.error(`✓ mcp-ds v${currentVersion} (up to date)`);
+      console.error(`✓ systembridge-mcp v${currentVersion} (up to date)`);
     }
   } catch (error) {
     // Fail silently if:

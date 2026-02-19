@@ -291,7 +291,7 @@ export interface ThemeDefinition {
  * coordinates.  When multiple conditions exist for a token, the one
  * whose coordinates best match the active theme is used.
  *
- * Stored in the W3C `$extensions` under `com.mcp-ds.conditions`.
+ * Stored in the W3C `$extensions` under `com.systembridge-mcp.conditions`.
  */
 export interface ConditionalTokenValue {
   /** Coordinates that must be active for this value to apply. */

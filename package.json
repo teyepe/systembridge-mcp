@@ -1,11 +1,14 @@
 {
-  "name": "mcp-ds",
+  "name": "systembridge-mcp",
   "version": "0.7.0",
-  "description": "Design System MCP Server — token management, transformation, validation, and evolution",
+  "description": "System Bridge MCP Server — token management, transformation, validation, and evolution",
   "main": "dist/index.js",
   "bin": {
-    "mcp-ds": "dist/index.js"
+    "systembridge-mcp": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -14,7 +17,9 @@
     "interactive": "tsx scripts/interactive.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -22,9 +27,12 @@
     "design-tokens",
     "style-dictionary"
   ],
-  "author": "",
+  "author": "Tasos Dervenagas",
   "license": "MIT",
   "type": "commonjs",
+  "overrides": {
+    "minimatch": "^10.2.1"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "colorjs.io": "^0.6.1",
@@ -36,10 +44,16 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^25.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^10.0.0",
+    "globals": "^17.3.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.14.0",
     "vitest": "^4.0.18"
   }
 }

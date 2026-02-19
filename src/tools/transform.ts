@@ -6,7 +6,7 @@
  *
  * Supports:
  * - Built-in platform presets (css, scss, js, ios, android, etc.)
- * - Custom Style Dictionary config file from mcp-ds.config.json
+ * - Custom Style Dictionary config file from systembridge-mcp.config.json
  * - Dry-run / preview mode (shows what would be generated without writing)
  */
 import * as fs from "node:fs";

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Interactive CLI for testing mcp-ds search functionality
+ * Interactive CLI for testing systembridge-mcp search functionality
  * Inspired by Dialtone MCP Server's interactive tool
  *
  * Usage: npm run interactive
@@ -11,7 +11,7 @@ import * as path from "node:path";
 import { loadConfig } from "../src/config/loader.js";
 import { searchTokens, formatSearchResults } from "../src/tools/search.js";
 
-const PROJECT_ROOT = process.env.MCP_DS_PROJECT_ROOT || process.cwd();
+const PROJECT_ROOT = process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT || process.cwd();
 const config = loadConfig(PROJECT_ROOT);
 
 // ANSI color codes for styled output
@@ -38,7 +38,7 @@ let debugMode = false;
 function showWelcome() {
   console.log(`${colors.bright}${colors.blue}`);
   console.log("╔═══════════════════════════════════════════════════════════╗");
-  console.log("║          mcp-ds Interactive Search                        ║");
+  console.log("║          systembridge-mcp Interactive Search              ║");
   console.log("╚═══════════════════════════════════════════════════════════╝");
   console.log(colors.reset);
   console.log(`${colors.dim}Project root: ${PROJECT_ROOT}${colors.reset}`);

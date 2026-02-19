@@ -1,7 +1,7 @@
 /**
  * Default configuration values.
  *
- * If no mcp-ds.config.json is found the server runs with these sensible
+ * If no systembridge-mcp.config.json is found the server runs with these sensible
  * defaults.  They're intentionally permissive so the MCP works out of the box
  * on any project that has token JSON files anywhere.
  */

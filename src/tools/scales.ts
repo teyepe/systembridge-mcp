@@ -545,7 +545,7 @@ export const deriveDensityModeTool = {
     generateConditional: z
       .boolean()
       .default(true)
-      .describe("Generate tokens with com.mcp-ds.conditions extension"),
+      .describe("Generate tokens with com.systembridge-mcp.conditions extension"),
   }),
 
   execute: async (args: {
@@ -627,7 +627,7 @@ export const deriveDensityModeTool = {
     markdown += `\`\`\`json\n${JSON.stringify(transformed, null, 2)}\n\`\`\`\n`;
 
     if (generateConditional) {
-      markdown += `\n## Conditional Tokens (with com.mcp-ds.conditions)\n\n`;
+      markdown += `\n## Conditional Tokens (with com.systembridge-mcp.conditions)\n\n`;
       markdown += `\`\`\`json\n${JSON.stringify(conditionalTokens, null, 2)}\n\`\`\`\n`;
     }
 

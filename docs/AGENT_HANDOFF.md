@@ -1,6 +1,6 @@
 # Agent Handoff Documentation
 
-> **Purpose:** This document enables LLMs and AI agents to understand, maintain, and extend the mcp-ds codebase autonomously. It provides deep architectural context, design rationale, and practical guidance for evolution.
+> **Purpose:** This document enables LLMs and AI agents to understand, maintain, and extend the systembridge-mcp codebase autonomously. It provides deep architectural context, design rationale, and practical guidance for evolution.
 
 **Last Updated:** 2026-02-19  
 **Codebase Version:** 0.7.0  
@@ -32,7 +32,7 @@
 
 ### System Design
 
-**mcp-ds** is a stateless MCP server that provides AI assistants with domain knowledge about design tokens and design systems. It follows a **layered architecture**:
+**systembridge-mcp** is a stateless MCP server that provides AI assistants with domain knowledge about design tokens and design systems. It follows a **layered architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -105,7 +105,7 @@
 ## Codebase Structure
 
 ```
-mcp-ds/
+systembridge-mcp/
 ├── src/
 │   ├── index.ts                    # MCP server entry point, tool registration
 │   ├── config/
@@ -217,7 +217,7 @@ mcp-ds/
 │   ├── figma-integration.md        # Figma variable cross-referencing
 │   ├── migration-system.md         # Risk assessment and scenarios
 │   └── migration-executor.md       # Execution, validation, rollback
-├── mcp-ds.config.json              # Example configuration
+├── systembridge-mcp.config.json              # Example configuration
 ├── package.json                    # Dependencies & scripts
 ├── tsconfig.json                   # TypeScript configuration (strict mode)
 ├── README.md                       # User-facing documentation
@@ -510,7 +510,7 @@ interface DesignToken {
 
 ### 5. Project-Scoped Configuration
 
-**File:** `.mcp-ds.json` in project root
+**File:** `.systembridge-mcp.json` in project root
 
 **Purpose:** Team-wide search defaults and consistency.
 
@@ -553,7 +553,7 @@ This guides users toward production-ready, public APIs while allowing explicit a
 ```
 
 **Inspired by Dialtone MCP Server:**
-Dialtone's approach of smart filtering and inline examples provides excellent DX. Phase 3 adopts these patterns while maintaining mcp-ds's broader scope (token architecture, not just retrieval).
+Dialtone's approach of smart filtering and inline examples provides excellent DX. Phase 3 adopts these patterns while maintaining systembridge-mcp's broader scope (token architecture, not just retrieval).
 
 ---
 
@@ -1354,13 +1354,13 @@ clamp(MIN, MIN + (MAX - MIN) × (100vw - MIN_VP) / (MAX_VP - MIN_VP), MAX)
     "xs": {
       "$type": "dimension",
       "$value": "8px",
-      "com.mcp-ds.scale": {
+      "com.systembridge-mcp.scale": {
         "strategy": "modular",
         "base": 4,
         "ratio": 1.5,
         "step": 0
       },
-      "com.mcp-ds.conditions": {
+      "com.systembridge-mcp.conditions": {
         "density": "comfortable"
       }
     }
@@ -1974,7 +1974,7 @@ function resolveReferences(tokenMap: TokenMap, maxDepth = 10) {
 - [x] Private token filtering (exclude internal tokens by default)
 - [x] Category filtering for token organization
 - [x] Metadata enrichment ($lifecycle, $private, $category, $examples)
-- [x] Project-scoped configuration (.mcp-ds.json)
+- [x] Project-scoped configuration (.systembridge-mcp.json)
 - [x] 8 new Phase 3 tests (33 total)
 - [ ] Token drift detection (track when designs diverge from system)
 - [ ] Usage analytics (which tokens are used where, consolidation opportunities)
@@ -2129,7 +2129,7 @@ try {
 } catch (err) {
   return {
     formatted: `❌ Error loading tokens: ${err.message}\n\n` +
-               `**Suggestion:** Check that \`tokenPaths\` in mcp-ds.config.json points to valid files.\n` +
+               `**Suggestion:** Check that \`tokenPaths\` in systembridge-mcp.config.json points to valid files.\n` +
                `**Paths configured:** ${config.tokenPaths.join(", ")}`,
     json: { error: err.message },
   };

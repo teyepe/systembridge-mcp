@@ -73,7 +73,7 @@ export async function loadTemplates(
         }
       } catch (err) {
         console.error(
-          `[mcp-ds] Error loading template ${file}: ${(err as Error).message}`,
+          `[systembridge-mcp] Error loading template ${file}: ${(err as Error).message}`,
         );
       }
     }
@@ -631,7 +631,7 @@ function generateFullSystem(
           primary: {
             $value: "{color.gray.100}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.gray.100}",
@@ -642,7 +642,7 @@ function generateFullSystem(
           secondary: {
             $value: "{color.gray.400}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.gray.400}",
@@ -653,7 +653,7 @@ function generateFullSystem(
           inverse: {
             $value: "{color.gray.900}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.gray.900}",
@@ -666,7 +666,7 @@ function generateFullSystem(
           primary: {
             $value: "{color.gray.900}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.gray.900}",
@@ -677,7 +677,7 @@ function generateFullSystem(
           secondary: {
             $value: "{color.gray.800}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.gray.800}",
@@ -688,7 +688,7 @@ function generateFullSystem(
           inverse: {
             $value: "{color.white}",
             $extensions: {
-              "com.mcp-ds.conditions": [
+              "com.systembridge-mcp.conditions": [
                 {
                   when: [{ dimension: "color-scheme", value: "dark" }],
                   value: "{color.white}",

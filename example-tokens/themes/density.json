@@ -8,7 +8,7 @@
         "$value": "{semantic.spacing.inset.md}",
         "$description": "Horizontal component padding — default (comfortable)",
         "$extensions": {
-          "com.mcp-ds.conditions": [
+          "com.systembridge-mcp.conditions": [
             {
               "when": [{ "dimension": "density", "value": "compact" }],
               "value": "{semantic.spacing.inset.xs}"
@@ -26,7 +26,7 @@
         "$value": "{semantic.spacing.inset.sm}",
         "$description": "Vertical component padding — default (comfortable)",
         "$extensions": {
-          "com.mcp-ds.conditions": [
+          "com.systembridge-mcp.conditions": [
             {
               "when": [{ "dimension": "density", "value": "compact" }],
               "value": "{spacing.1}"
@@ -44,7 +44,7 @@
         "$value": "{semantic.spacing.inline.md}",
         "$description": "Gap between sibling components",
         "$extensions": {
-          "com.mcp-ds.conditions": [
+          "com.systembridge-mcp.conditions": [
             {
               "when": [{ "dimension": "density", "value": "compact" }],
               "value": "{semantic.spacing.inline.xs}"
@@ -62,7 +62,7 @@
         "$value": "2.5rem",
         "$description": "Minimum interactive target height",
         "$extensions": {
-          "com.mcp-ds.conditions": [
+          "com.systembridge-mcp.conditions": [
             {
               "when": [{ "dimension": "density", "value": "compact" }],
               "value": "2rem"
@@ -80,7 +80,7 @@
         "$value": "{semantic.spacing.stack.lg}",
         "$description": "Vertical gap between page sections",
         "$extensions": {
-          "com.mcp-ds.conditions": [
+          "com.systembridge-mcp.conditions": [
             {
               "when": [{ "dimension": "density", "value": "compact" }],
               "value": "{semantic.spacing.stack.md}"

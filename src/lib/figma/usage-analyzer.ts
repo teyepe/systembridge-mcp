@@ -355,7 +355,7 @@ export function correlateTokensWithFigma(
 function normalizeVariableName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[\/\\]/g, ".") // Convert / and \ to .
+    .replace(new RegExp("[/\\\\]", "g"), ".") // Convert / and \ to .
     .replace(/[-_]/g, ".") // Convert - and _ to .
     .replace(/\.+/g, "."); // Collapse multiple dots
 }

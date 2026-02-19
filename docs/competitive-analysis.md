@@ -47,7 +47,7 @@
 - **Architecture**: Supabase pgvector + OpenAI embeddings (1536 dimensions), Cloudflare Workers deployment
 - **Content**: 188+ curated entries, 761+ content chunks — W3C standards, WCAG 2.2, ARIA practices, 10+ major design systems
 - **Ingestion**: URL, PDF, CSV bulk, website crawl → vector embeddings
-- **Key insight**: Purely a knowledge retrieval system. No token manipulation or generation. Complements rather than competes with mcp-ds.
+- **Key insight**: Purely a knowledge retrieval system. No token manipulation or generation. Complements rather than competes with systembridge-mcp.
 
 ### @storybook/addon-mcp (Official Storybook MCP)
 
@@ -190,7 +190,7 @@
 10. ✅ **Private token filtering** — Exclude internal tokens by default
 11. ✅ **Category filtering** — Organize tokens by category
 12. ✅ **Metadata enrichment** — $lifecycle, $private, $category, $examples support
-13. ✅ **Project-scoped configuration** — .mcp-ds.json for team settings
+13. ✅ **Project-scoped configuration** — .systembridge-mcp.json for team settings
 14. **Storybook integration** — component prop extraction + story-aware token resolution
 15. **HTTP/SSE transport** — enable remote/shared MCP server deployment
 16. **Adoption analytics** — codebase scanning + unused token detection + structured reports
@@ -208,7 +208,7 @@
 
 ## Our Competitive Advantages (already shipped)
 
-These capabilities are **unique to mcp-ds** — no competitor has them:
+These capabilities are **unique to systembridge-mcp** — no competitor has them:
 
 **Core Architecture:**
 - **Semantic ontology with property classes, intents, UX contexts, states, emphasis modifiers** — structured knowledge graph for token naming, not just key-value lookup
@@ -234,5 +234,5 @@ These capabilities are **unique to mcp-ds** — no competitor has them:
 - **Category organization** (v0.7.0) — Smart token grouping and filtering
 - **Interactive CLI** (v0.5.0) — Test search quality without MCP client
 - **Version checking** (v0.5.0) — Auto-notify on updates
-- **Project-scoped config** (v0.7.0) — Team-wide settings via .mcp-ds.json
+- **Project-scoped config** (v0.7.0) — Team-wide settings via .systembridge-mcp.json
 - **Comprehensive test suite** (v0.5.0-v0.7.0) — 33 tests, 100% pass rate

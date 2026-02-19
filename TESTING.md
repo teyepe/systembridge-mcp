@@ -1,6 +1,6 @@
-# Testing mcp-ds Locally
+# Testing systembridge-mcp Locally
 
-This guide shows how to test mcp-ds in your IDE without hardcoding absolute paths.
+This guide shows how to test systembridge-mcp in your IDE without hardcoding absolute paths.
 
 ## Quick Setup
 
@@ -17,10 +17,10 @@ This guide shows how to test mcp-ds in your IDE without hardcoding absolute path
    ```json
    {
      "mcpServers": {
-       "mcp-ds": {
-         "command": "mcp-ds",
+       "systembridge-mcp": {
+         "command": "systembridge-mcp",
          "env": {
-           "MCP_DS_PROJECT_ROOT": "${workspaceFolder}"
+           "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "${workspaceFolder}"
          }
        }
      }
@@ -31,10 +31,10 @@ This guide shows how to test mcp-ds in your IDE without hardcoding absolute path
    ```json
    {
      "mcpServers": {
-       "mcp-ds": {
-         "command": "mcp-ds",
+       "systembridge-mcp": {
+         "command": "systembridge-mcp",
          "env": {
-           "MCP_DS_PROJECT_ROOT": "/path/to/your/design-tokens"
+           "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/path/to/your/design-tokens"
          }
        }
      }
@@ -50,23 +50,23 @@ To test with the included example tokens:
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds",
+    "systembridge-mcp": {
+      "command": "systembridge-mcp",
       "env": {
-        "MCP_DS_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/mcp-ds"
+        "SYSTEMBRIDGE_MCP_PROJECT_ROOT": "/Users/tasos.dervenagas/Documents/repos/systembridge-mcp"
       }
     }
   }
 }
 ```
 
-Or simply omit `MCP_DS_PROJECT_ROOT` and let it use current directory:
+Or simply omit `SYSTEMBRIDGE_MCP_PROJECT_ROOT` and let it use current directory:
 
 ```json
 {
   "mcpServers": {
-    "mcp-ds": {
-      "command": "mcp-ds"
+    "systembridge-mcp": {
+      "command": "systembridge-mcp"
     }
   }
 }
@@ -76,15 +76,15 @@ Or simply omit `MCP_DS_PROJECT_ROOT` and let it use current directory:
 
 The server respects these environment variables:
 
-- **`MCP_DS_PROJECT_ROOT`**: Absolute path to your design token project directory
+- **`SYSTEMBRIDGE_MCP_PROJECT_ROOT`**: Absolute path to your design token project directory
 - If not set, uses the current working directory (`process.cwd()`)
 
 ## Configuration File
 
 The server looks for configuration in this order:
-1. `mcp-ds.config.json`
-2. `mcp-ds.config.json5`
-3. `.mcp-ds.json`
+1. `systembridge-mcp.config.json`
+2. `systembridge-mcp.config.json5`
+3. `.systembridge-mcp.json`
 
 If no config file is found, it uses sensible defaults and looks for tokens in `example-tokens/**/*.json`.
 
@@ -92,7 +92,7 @@ If no config file is found, it uses sensible defaults and looks for tokens in `e
 
 To remove the global link:
 ```bash
-npm unlink -g mcp-ds
+npm unlink -g systembridge-mcp
 ```
 
 ## Troubleshooting
@@ -102,8 +102,8 @@ npm unlink -g mcp-ds
 - Check that your npm bin directory is in your PATH: `echo $PATH | grep $(npm bin -g)`
 
 **Can't find tokens:**
-- Set `MCP_DS_PROJECT_ROOT` to point to your token directory
-- Or ensure you have a `mcp-ds.config.json` with `tokenPaths` configured
+- Set `SYSTEMBRIDGE_MCP_PROJECT_ROOT` to point to your token directory
+- Or ensure you have a `systembridge-mcp.config.json` with `tokenPaths` configured
 
 **Changes not reflected:**
 - Rebuild after code changes: `npm run build`

@@ -63,7 +63,7 @@ export function listBrandsTool(config: McpDsConfig): ListBrandsResult {
     return {
       brands: [],
       formatted:
-        "No brands configured. Add a `brands` section to your mcp-ds config.",
+        "No brands configured. Add a `brands` section to your systembridge-mcp config.",
     };
   }
 

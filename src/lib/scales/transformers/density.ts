@@ -135,7 +135,7 @@ export function transformDensity(
 /**
  * Generate conditional tokens for multiple density modes.
  *
- * Creates tokens with `com.mcp-ds.conditions` extension for density dimension.
+ * Creates tokens with `com.systembridge-mcp.conditions` extension for density dimension.
  *
  * @param baseTokens - Base (comfortable) tokens
  * @param modes - Density modes to generate
@@ -152,7 +152,7 @@ export function transformDensity(
  * // → {
  * //   'spacing-md': {
  * //     $value: '16px',
- * //     'com.mcp-ds.conditions': {
+ * //     'com.systembridge-mcp.conditions': {
  * //       compact: '12px',
  * //       comfortable: '16px',
  * //       spacious: '20px'
@@ -186,7 +186,7 @@ export function generateConditionalDensityTokens(
 
     result[key] = {
       $value: baseValue, // Default (comfortable)
-      "com.mcp-ds.conditions": conditions,
+      "com.systembridge-mcp.conditions": conditions,
     };
   }
 

@@ -210,7 +210,7 @@ function getPatterns(
 
   switch (fileType) {
     case "typescript":
-    case "javascript":
+    case "javascript": {
       // Import statements: import { color } from './tokens'
       patterns.push({
         name: "import",
@@ -244,9 +244,10 @@ function getPatterns(
       });
 
       break;
+    }
 
     case "css":
-    case "scss":
+    case "scss": {
       // CSS variables: var(--color-primary)
       patterns.push({
         name: "css-var",
@@ -266,8 +267,9 @@ function getPatterns(
       });
 
       break;
+    }
 
-    case "json":
+    case "json": {
       // JSON references: { "value": "{color.primary}" }
       patterns.push({
         name: "json-ref",
@@ -281,6 +283,7 @@ function getPatterns(
       });
 
       break;
+    }
   }
 
   return patterns;
@@ -324,7 +327,7 @@ function shouldIncludeFile(
 ): boolean {
   // Convert glob patterns to regex (simplified)
   const toRegex = (pattern: string): RegExp => {
-    let regex = pattern
+    const regex = pattern
       .replace(/\./g, String.raw`\.`)
       .replace(/\*\*/g, ".*")
       .replace(/\*/g, "[^/]*")
@@ -398,7 +401,7 @@ function buildReplacements(
 
   switch (fileType) {
     case "typescript":
-    case "javascript":
+    case "javascript": {
       // Object bracket notation
       replacements.push([
         `tokens\\[(['"])${oldEscaped}\\1\\]`,
@@ -422,9 +425,10 @@ function buildReplacements(
       ]);
 
       break;
+    }
 
     case "css":
-    case "scss":
+    case "scss": {
       // CSS variables: convert . to -
       const oldCss = oldPath.replace(/\./g, "-");
       const newCss = newPath.replace(/\./g, "-");
@@ -440,8 +444,9 @@ function buildReplacements(
       ]);
 
       break;
+    }
 
-    case "json":
+    case "json": {
       // JSON references
       replacements.push([
         `\\{${oldEscaped}\\}`,
@@ -455,6 +460,7 @@ function buildReplacements(
       ]);
 
       break;
+    }
   }
 
   return replacements;

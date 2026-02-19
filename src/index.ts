@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-ds — Design System MCP Server
+ * systembridge-mcp — Design System MCP Server
  *
  * A Model Context Protocol server for design token management,
  * transformation, validation, evolution, multi-dimensional theming,
@@ -82,8 +82,8 @@ import { generateMakeGuidelinesTool } from "./tools/figma-make.js";
 // Resolve project root
 // ---------------------------------------------------------------------------
 
-const PROJECT_ROOT = process.env.MCP_DS_PROJECT_ROOT
-  ? path.resolve(process.env.MCP_DS_PROJECT_ROOT)
+const PROJECT_ROOT = process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT
+  ? path.resolve(process.env.SYSTEMBRIDGE_MCP_PROJECT_ROOT)
   : process.cwd();
 
 const config = loadConfig(PROJECT_ROOT);
@@ -93,7 +93,7 @@ const config = loadConfig(PROJECT_ROOT);
 // ---------------------------------------------------------------------------
 
 const server = new McpServer({
-  name: "mcp-ds",
+  name: "systembridge-mcp",
   version: pkg.version,
 });
 
@@ -1627,19 +1627,19 @@ async function main() {
 
   // Log startup diagnostics
   console.error(
-    `[mcp-ds] Loaded ${tokenMap.size} tokens in ${loadTime}ms`,
+    `[systembridge-mcp] Loaded ${tokenMap.size} tokens in ${loadTime}ms`,
   );
-  console.error(`[mcp-ds] Project root: ${PROJECT_ROOT}`);
+  console.error(`[systembridge-mcp] Project root: ${PROJECT_ROOT}`);
   console.error(
-    `[mcp-ds] Token paths: ${config.tokenPaths.join(", ")}`,
+    `[systembridge-mcp] Token paths: ${config.tokenPaths.join(", ")}`,
   );
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[mcp-ds] Server ready — 32 tools, 7 prompts, 1 resource`);
+  console.error(`[systembridge-mcp] Server ready — 32 tools, 7 prompts, 1 resource`);
 }
 
 main().catch((err) => {
-  console.error("[mcp-ds] Fatal error:", err);
+  console.error("[systembridge-mcp] Fatal error:", err);
   process.exit(1);
 });

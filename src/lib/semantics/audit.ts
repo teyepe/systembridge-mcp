@@ -37,7 +37,7 @@ import {
   type ScopingReport,
   type ScopingViolation,
 } from "./scoping.js";
-import type { CrossReferenceReport, FigmaVariable, VariableMapping } from "../figma/usage-analyzer.js";
+import { correlateTokensWithFigma, type CrossReferenceReport, type FigmaVariable, type VariableMapping } from "../figma/usage-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Audit result types
@@ -1203,9 +1203,6 @@ export function integrateFigmaAnalysis(
   figmaVariables: FigmaVariable[],
   mappings: VariableMapping[],
 ): CrossReferenceReport {
-  // Import the correlate function from usage-analyzer
-  const { correlateTokensWithFigma } = require("../figma/usage-analyzer.js");
-  
   return correlateTokensWithFigma(localTokens, figmaVariables, mappings);
 }
 

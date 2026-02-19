@@ -64,7 +64,7 @@ function resolveConditionalValue(
   targetCoords: ThemeCoordinate[],
 ): unknown {
   const conditions = token.extensions?.[
-    "com.mcp-ds.conditions"
+    "com.systembridge-mcp.conditions"
   ] as ConditionalTokenValue[] | undefined;
 
   if (!conditions || conditions.length === 0) {

@@ -93,7 +93,7 @@ export async function loadAllTokens(
 
       if (!adapter) {
         // Skip files we can't understand — don't crash, just log.
-        console.error(`[mcp-ds] No format adapter matched: ${relPath}`);
+        console.error(`[systembridge-mcp] No format adapter matched: ${relPath}`);
         continue;
       }
 
@@ -103,7 +103,7 @@ export async function loadAllTokens(
       }
     } catch (err) {
       console.error(
-        `[mcp-ds] Error parsing ${relPath}: ${(err as Error).message}`,
+        `[systembridge-mcp] Error parsing ${relPath}: ${(err as Error).message}`,
       );
     }
   }

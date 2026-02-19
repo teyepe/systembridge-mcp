@@ -1546,6 +1546,59 @@ server.prompt(
   },
 );
 
+server.prompt(
+  "component-reference",
+  "Find curated component implementations from 50+ production design systems. " +
+    "Points to component.gallery for pattern research, then helps cross-reference " +
+    "with your local tokens.",
+  {
+    component: z
+      .string()
+      .describe(
+        "Component name to research, e.g. 'button', 'input', 'card', 'modal', 'tabs'",
+      ),
+  },
+  async (args) => {
+    const componentSlug = args.component.toLowerCase().replace(/\s+/g, "-");
+    return {
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text:
+              `I need to research the **${args.component}** component across production design systems.\n\n` +
+              `**Step 1: Review curated implementations**\n` +
+              `Visit: https://component.gallery/components/${componentSlug}/\n\n` +
+              `This shows the ${args.component} component from 50+ design systems including:\n` +
+              `- Material Design, Polaris, Carbon, Chakra UI, Ant Design\n` +
+              `- Atlassian Design System, Adobe Spectrum, GitHub Primer\n` +
+              `- Screenshots, live demos, and official documentation links\n\n` +
+              `**Step 2: Cross-reference with local tokens**\n` +
+              `After reviewing component.gallery:\n` +
+              `1. Use search_tokens to find existing ${args.component}-related tokens\n` +
+              `2. Compare naming patterns:\n` +
+              `   - Do local tokens follow common conventions you saw?\n` +
+              `   - Are there missing token categories (states, variants, sizes)?\n` +
+              `3. Note design patterns across systems:\n` +
+              `   - Which interactive states are standard?\n` +
+              `   - What size/variant scales are common?\n` +
+              `   - How do teams handle density/spacing?\n\n` +
+              `**Step 3: Provide recommendations**\n` +
+              `Based on the research:\n` +
+              `- Suggest tokens to add/rename for better alignment\n` +
+              `- Identify gaps in state coverage\n` +
+              `- Recommend patterns that match industry standards\n` +
+              `- Flag any unusual local patterns that differ from common practice\n\n` +
+              `This ensures your ${args.component} component follows proven patterns ` +
+              `while maintaining consistency with your existing token architecture.`,
+          },
+        },
+      ],
+    };
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Start server
 // ---------------------------------------------------------------------------
@@ -1571,7 +1624,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[mcp-ds] Server ready — 32 tools, 6 prompts, 1 resource`);
+  console.error(`[mcp-ds] Server ready — 32 tools, 7 prompts, 1 resource`);
 }
 
 main().catch((err) => {

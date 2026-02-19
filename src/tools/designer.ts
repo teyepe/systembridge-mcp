@@ -769,6 +769,255 @@ export async function analyzeUiTool(
 }
 
 // ---------------------------------------------------------------------------
+// audit_figma_usage — Figma-Token Sync Analysis
+// ---------------------------------------------------------------------------
+
+export interface AuditFigmaUsageResult {
+  formatted: string;
+  json: {
+    usageMap: {
+      fileKey: string;
+      nodeId: string;
+      totalFigmaVariables: number;
+      mappedVariables: number;
+      unmappedVariables: number;
+      mappingRate: number;
+    };
+    crossReference: {
+      unusedInFigma: string[];
+      missingLocalDefinitions: string[];
+      namingDiscrepancies: Array<{
+        figmaName: string;
+        localToken: string;
+        similarity: number;
+        action: string;
+      }>;
+      syncStatus: string;
+      syncScore: number;
+    };
+    recommendations: string[];
+  };
+}
+
+/**
+ * Audit Figma variable usage and cross-reference with local tokens.
+ * 
+ * This tool fetches Figma variables via MCP tools and analyzes:
+ * - Which Figma variables map to local tokens
+ * - Which local tokens are unused in Figma
+ * - Which Figma variables lack local definitions
+ * - Naming discrepancies between Figma and local tokens
+ * 
+ * @param config - MCP-DS configuration
+ * @param figmaFileUrl - Figma file URL (format: https://www.figma.com/file/:key/...)
+ * @param figmaNodeId - Optional node ID to analyze (defaults to entire file)
+ * @param figmaVariableDefs - Pre-fetched Figma variable definitions (if available)
+ * @returns Usage analysis and cross-reference report
+ */
+export async function auditFigmaUsageTool(
+  config: McpDsConfig,
+  figmaFileUrl: string,
+  figmaNodeId?: string,
+  figmaVariableDefs?: Record<string, string>,
+): Promise<AuditFigmaUsageResult> {
+  // Load local tokens
+  const allTokens = await loadAllTokens(config);
+  const tokens = resolveReferences(allTokens);
+
+  // Import Figma usage analyzer functions
+  const {
+    parseFigmaVariables,
+    mapVariablesToTokens,
+    analyzeVariableUsage,
+    correlateTokensWithFigma,
+  } = await import("../lib/figma/usage-analyzer.js");
+
+  // Parse Figma variables
+  // Note: In a real implementation, figmaVariableDefs would be fetched via mcp_figma_get_variable_defs
+  // For now, we expect it to be passed in or return a message to use the MCP tool
+  if (!figmaVariableDefs) {
+    return {
+      formatted: `## Figma Usage Analysis
+
+⚠️ **No Figma variable data provided**
+
+To analyze Figma usage, you must first fetch variable definitions using the Figma MCP tool:
+
+\`\`\`
+mcp_figma_get_variable_defs({ nodeUrl: "${figmaFileUrl}" })
+\`\`\`
+
+Then pass the result as \`figmaVariableDefs\` parameter to this tool.
+`,
+      json: {
+        usageMap: {
+          fileKey: "",
+          nodeId: figmaNodeId ?? "",
+          totalFigmaVariables: 0,
+          mappedVariables: 0,
+          unmappedVariables: 0,
+          mappingRate: 0,
+        },
+        crossReference: {
+          unusedInFigma: [],
+          missingLocalDefinitions: [],
+          namingDiscrepancies: [],
+          syncStatus: "unknown",
+          syncScore: 0,
+        },
+        recommendations: [
+          "Fetch Figma variable definitions using mcp_figma_get_variable_defs",
+        ],
+      },
+    };
+  }
+
+  // Parse Figma variables
+  const figmaVariables = parseFigmaVariables(figmaVariableDefs);
+
+  // Map Figma variables to local tokens
+  const mappings = mapVariablesToTokens(figmaVariables, tokens);
+
+  // Analyze usage
+  const usageMap = analyzeVariableUsage(figmaVariables, tokens, mappings);
+  usageMap.fileKey = extractFileKey(figmaFileUrl);
+  usageMap.nodeId = figmaNodeId ?? "root";
+
+  // Cross-reference with local tokens
+  const crossReference = correlateTokensWithFigma(tokens, figmaVariables, mappings);
+
+  // Generate recommendations
+  const recommendations: string[] = [];
+
+  if (crossReference.syncStatus === "diverged") {
+    recommendations.push(
+      "⚠️ **High divergence detected** — Local tokens and Figma variables are significantly out of sync. Consider a full synchronization."
+    );
+  }
+
+  if (crossReference.missingLocalDefinitions.length > 0) {
+    recommendations.push(
+      `📝 **Add ${crossReference.missingLocalDefinitions.length} local token(s)** — These Figma variables don't have corresponding local definitions.`
+    );
+  }
+
+  if (crossReference.unusedInFigma.length > 0) {
+    recommendations.push(
+      `🔍 **Review ${crossReference.unusedInFigma.length} unused token(s)** — These local tokens aren't used in Figma. Consider deprecating or documenting why they exist.`
+    );
+  }
+
+  if (crossReference.namingDiscrepancies.length > 0) {
+    recommendations.push(
+      `✏️ **Resolve ${crossReference.namingDiscrepancies.length} naming discrepanc${crossReference.namingDiscrepancies.length === 1 ? 'y' : 'ies'}** — Similar but not identical names detected. Consider aliases or renaming.`
+    );
+  }
+
+  if (crossReference.syncStatus === "synced") {
+    recommendations.push(
+      "✅ **Well synchronized** — Local tokens and Figma variables are in good sync. Maintain this consistency."
+    );
+  }
+
+  // Format output
+  const lines: string[] = [];
+  lines.push(`## Figma Usage Analysis`);
+  lines.push(``);
+  lines.push(`**File:** ${figmaFileUrl}`);
+  if (figmaNodeId) {
+    lines.push(`**Node:** ${figmaNodeId}`);
+  }
+  lines.push(``);
+
+  lines.push(`### Variable Mapping`);
+  lines.push(`- **Total Figma variables:** ${usageMap.metrics.totalFigmaVariables}`);
+  lines.push(`- **Mapped to local tokens:** ${usageMap.metrics.mappedVariables}`);
+  lines.push(`- **Unmapped:** ${usageMap.metrics.unmappedVariables}`);
+  lines.push(`- **Mapping rate:** ${(usageMap.metrics.mappingRate * 100).toFixed(1)}%`);
+  lines.push(``);
+
+  lines.push(`### Sync Status: **${crossReference.syncStatus.toUpperCase()}**`);
+  lines.push(`- **Score:** ${(crossReference.syncScore * 100).toFixed(1)}%`);
+  lines.push(``);
+
+  if (crossReference.unusedInFigma.length > 0) {
+    lines.push(`#### Unused in Figma (${crossReference.unusedInFigma.length})`);
+    const showCount = Math.min(10, crossReference.unusedInFigma.length);
+    for (let i = 0; i < showCount; i++) {
+      lines.push(`- \`${crossReference.unusedInFigma[i]}\``);
+    }
+    if (crossReference.unusedInFigma.length > 10) {
+      lines.push(`- *(and ${crossReference.unusedInFigma.length - 10} more)*`);
+    }
+    lines.push(``);
+  }
+
+  if (crossReference.missingLocalDefinitions.length > 0) {
+    lines.push(`#### Missing Local Definitions (${crossReference.missingLocalDefinitions.length})`);
+    const showCount = Math.min(10, crossReference.missingLocalDefinitions.length);
+    for (let i = 0; i < showCount; i++) {
+      lines.push(`- \`${crossReference.missingLocalDefinitions[i]}\``);
+    }
+    if (crossReference.missingLocalDefinitions.length > 10) {
+      lines.push(`- *(and ${crossReference.missingLocalDefinitions.length - 10} more)*`);
+    }
+    lines.push(``);
+  }
+
+  if (crossReference.namingDiscrepancies.length > 0) {
+    lines.push(`#### Naming Discrepancies (${crossReference.namingDiscrepancies.length})`);
+    const showCount = Math.min(5, crossReference.namingDiscrepancies.length);
+    for (let i = 0; i < showCount; i++) {
+      const disc = crossReference.namingDiscrepancies[i];
+      lines.push(`- \`${disc.figmaName}\` ≈ \`${disc.localToken}\` (${(disc.similarity * 100).toFixed(0)}% similar)`);
+      lines.push(`  - **Action:** ${disc.action.replace(/-/g, ' ')}`);
+    }
+    if (crossReference.namingDiscrepancies.length > 5) {
+      lines.push(`- *(and ${crossReference.namingDiscrepancies.length - 5} more)*`);
+    }
+    lines.push(``);
+  }
+
+  lines.push(`### Recommendations`);
+  recommendations.forEach(rec => lines.push(`- ${rec}`));
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      usageMap: {
+        fileKey: usageMap.fileKey,
+        nodeId: usageMap.nodeId,
+        totalFigmaVariables: usageMap.metrics.totalFigmaVariables,
+        mappedVariables: usageMap.metrics.mappedVariables,
+        unmappedVariables: usageMap.metrics.unmappedVariables,
+        mappingRate: usageMap.metrics.mappingRate,
+      },
+      crossReference: {
+        unusedInFigma: crossReference.unusedInFigma,
+        missingLocalDefinitions: crossReference.missingLocalDefinitions,
+        namingDiscrepancies: crossReference.namingDiscrepancies.map(d => ({
+          figmaName: d.figmaName,
+          localToken: d.localToken,
+          similarity: d.similarity,
+          action: d.action,
+        })),
+        syncStatus: crossReference.syncStatus,
+        syncScore: crossReference.syncScore,
+      },
+      recommendations,
+    },
+  };
+}
+
+/**
+ * Extract file key from Figma URL
+ */
+function extractFileKey(url: string): string {
+  const match = url.match(/file\/([A-Za-z0-9]+)/);
+  return match ? match[1] : "";
+}
+
+// ---------------------------------------------------------------------------
 // Scoring helpers
 // ---------------------------------------------------------------------------
 

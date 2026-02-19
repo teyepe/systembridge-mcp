@@ -55,6 +55,7 @@ import {
   planFlowTool,
   auditDesignTool,
   analyzeUiTool,
+  auditFigmaUsageTool,
 } from "./tools/designer.js";
 import {
   analyzeScalesTool,
@@ -921,6 +922,46 @@ server.tool(
   },
   async (args) => {
     const { formatted } = await analyzeUiTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- audit_figma_usage ----------------------------------------------------
+
+server.tool(
+  "audit_figma_usage",
+  "Audit Figma variable usage and cross-reference with local design tokens. " +
+    "Analyzes sync status between Figma variables and local token definitions, " +
+    "identifies unused tokens, missing definitions, and naming discrepancies. " +
+    "Helps maintain consistency between Figma designs and token system. " +
+    "Note: Requires Figma variable data from mcp_figma_get_variable_defs.",
+  {
+    figmaFileUrl: z
+      .string()
+      .describe(
+        "Figma file URL in format: https://www.figma.com/file/KEY/..."
+      ),
+    figmaNodeId: z
+      .string()
+      .optional()
+      .describe(
+        "Optional Figma node ID to analyze. If omitted, analyzes entire file."
+      ),
+    figmaVariableDefs: z
+      .record(z.string())
+      .optional()
+      .describe(
+        "Variable definitions from mcp_figma_get_variable_defs. " +
+        "Format: { 'variable/path': '#value', ... }"
+      ),
+  },
+  async (args) => {
+    const { formatted } = await auditFigmaUsageTool(
+      config,
+      args.figmaFileUrl,
+      args.figmaNodeId,
+      args.figmaVariableDefs,
+    );
     return { content: [{ type: "text" as const, text: formatted }] };
   },
 );

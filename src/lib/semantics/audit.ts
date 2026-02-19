@@ -37,6 +37,7 @@ import {
   type ScopingReport,
   type ScopingViolation,
 } from "./scoping.js";
+import type { CrossReferenceReport, FigmaVariable, VariableMapping } from "../figma/usage-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Audit result types
@@ -57,6 +58,8 @@ export interface SemanticAuditResult {
   dependencies: DependencyGraph;
   /** Anti-pattern detection */
   antiPatterns: AntiPatternReport;
+  /** Figma cross-reference analysis (optional) */
+  figma?: CrossReferenceReport;
   /** Migration suggestions for non-compliant tokens */
   migration: MigrationSuggestion[];
   /** Summary text */
@@ -281,6 +284,8 @@ export function auditSemanticTokens(
     pathPrefixes?: string[];
     /** Skip these scoping rules */
     skipRules?: string[];
+    /** Optional Figma cross-reference data */
+    figma?: CrossReferenceReport;
   },
 ): SemanticAuditResult {
   // Optionally filter tokens
@@ -308,7 +313,7 @@ export function auditSemanticTokens(
 
   const healthScore = computeHealthScore(structure, coverage, scoping, accessibility, dependencies, antiPatterns);
 
-  const summary = buildSummary(healthScore, structure, coverage, scoping, accessibility, dependencies, antiPatterns, migration);
+  const summary = buildSummary(healthScore, structure, coverage, scoping, accessibility, dependencies, antiPatterns, migration, options?.figma);
 
   return {
     healthScore,
@@ -318,6 +323,7 @@ export function auditSemanticTokens(
     accessibility,
     dependencies,
     antiPatterns,
+    figma: options?.figma,
     migration,
     summary,
   };
@@ -1178,6 +1184,32 @@ function detectMissingVariants(tokens: Map<string, DesignToken>): AntiPattern[] 
 }
 
 // ---------------------------------------------------------------------------
+// Figma Cross-Reference
+// ---------------------------------------------------------------------------
+
+/**
+ * Integrate Figma variable analysis with local token audit.
+ * 
+ * This function acts as a bridge between the token audit system and Figma usage data.
+ * It should be called from the tool layer after fetching Figma variables via MCP tools.
+ * 
+ * @param localTokens - Resolved local token map (from parser)
+ * @param figmaVariables - Variables fetched from Figma (via mcp_figma_get_variable_defs)
+ * @param mappings - Pre-computed variable→token mappings (via mapVariablesToTokens)
+ * @returns Cross-reference report with sync status
+ */
+export function integrateFigmaAnalysis(
+  localTokens: Map<string, DesignToken>,
+  figmaVariables: FigmaVariable[],
+  mappings: VariableMapping[],
+): CrossReferenceReport {
+  // Import the correlate function from usage-analyzer
+  const { correlateTokensWithFigma } = require("../figma/usage-analyzer.js");
+  
+  return correlateTokensWithFigma(localTokens, figmaVariables, mappings);
+}
+
+// ---------------------------------------------------------------------------
 // Health score
 // ---------------------------------------------------------------------------
 
@@ -1248,6 +1280,7 @@ function buildSummary(
   dependencies: DependencyGraph,
   antiPatterns: AntiPatternReport,
   migration: MigrationSuggestion[],
+  figma?: CrossReferenceReport,
 ): string {
   const lines: string[] = [];
 
@@ -1399,6 +1432,53 @@ function buildSummary(
     }
   }
   lines.push("");
+
+  // Figma Cross-Reference (optional)
+  if (figma) {
+    lines.push(`### Figma Sync`);
+    lines.push(`- Status: **${figma.syncStatus.toUpperCase()}** (score: ${(figma.syncScore * 100).toFixed(1)}%)`);
+    
+    if (figma.unusedInFigma.length > 0) {
+      lines.push(`- ⚠️ ${figma.unusedInFigma.length} local token(s) not used in Figma`);
+      if (figma.unusedInFigma.length <= 5) {
+        figma.unusedInFigma.forEach(token => {
+          lines.push(`  - \`${token}\``);
+        });
+      } else {
+        lines.push(`  - (showing first 5)`);
+        figma.unusedInFigma.slice(0, 5).forEach(token => {
+          lines.push(`  - \`${token}\``);
+        });
+      }
+    }
+    
+    if (figma.missingLocalDefinitions.length > 0) {
+      lines.push(`- ❌ ${figma.missingLocalDefinitions.length} Figma variable(s) without local definitions`);
+      if (figma.missingLocalDefinitions.length <= 5) {
+        figma.missingLocalDefinitions.forEach(variable => {
+          lines.push(`  - \`${variable}\``);
+        });
+      } else {
+        lines.push(`  - (showing first 5)`);
+        figma.missingLocalDefinitions.slice(0, 5).forEach(variable => {
+          lines.push(`  - \`${variable}\``);
+        });
+      }
+    }
+    
+    if (figma.namingDiscrepancies.length > 0) {
+      lines.push(`- ℹ️ ${figma.namingDiscrepancies.length} naming discrepanc${figma.namingDiscrepancies.length === 1 ? 'y' : 'ies'} detected`);
+      figma.namingDiscrepancies.slice(0, 3).forEach(disc => {
+        lines.push(`  - \`${disc.figmaName}\` ≈ \`${disc.localToken}\` (${(disc.similarity * 100).toFixed(0)}% similar) → ${disc.action.replace(/-/g, ' ')}`);
+      });
+    }
+    
+    if (figma.syncStatus === "synced") {
+      lines.push("- ✅ Local tokens and Figma variables are well synchronized");
+    }
+    
+    lines.push("");
+  }
 
   // Recommendations
   lines.push(`### Recommendations`);

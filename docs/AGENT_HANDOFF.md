@@ -3,8 +3,13 @@
 > **Purpose:** This document enables LLMs and AI agents to understand, maintain, and extend the mcp-ds codebase autonomously. It provides deep architectural context, design rationale, and practical guidance for evolution.
 
 **Last Updated:** 2026-02-19  
-**Codebase Version:** 1.0.0  
+**Codebase Version:** 0.7.0  
 **Target Audience:** LLMs, AI agents, autonomous coding systems
+
+**Recent Releases:**
+- **v0.7.0 (Phase 3):** Usage examples, private filtering, metadata enrichment
+- **v0.6.0 (Phase 2):** Smart lifecycle filtering, caching, performance benchmarking
+- **v0.5.0 (Phase 1):** Interactive CLI, version checking, automated test suite
 
 ---
 
@@ -41,7 +46,11 @@
 ┌────────────────────────┴────────────────────────────────────┐
 │  Tools Layer (src/tools/)                                   │
 │  • Designer-centric: plan_flow, audit_design, analyze_ui    │
-│  • Search & validation: search_tokens, validate_tokens      │
+│  • Search & validation: search_tokens (Phase 3 enhanced)    │
+│    - Smart lifecycle filtering (draft/active/deprecated)    │
+│    - Private token filtering (exclude internal by default)  │
+│    - Category filtering & usage examples                    │
+│  • Validation: validate_tokens                              │
 │  • Semantics: scaffold, audit, coverage, ontology           │
 │  • Colors: generate_palette, check_contrast                 │
 │  • Scales: analyze, generate, suggest, density, audit       │
@@ -65,9 +74,13 @@
 │  │ figma/             │ Variable extraction, validation │  │
 │  │ migration/         │ Topology, risk, execution       │  │
 │  │ io/                │ File writing utilities          │  │
+│  │ cache.ts           │ Token caching (Phase 2)         │  │
+│  │ performance.ts     │ Benchmarking utilities (Phase 2)│  │
 │  └──────────────────────────────────────────────────────┘  │
 │  parser.ts      — Token file loading & resolution          │
 │  types.ts       — Core type definitions (format-agnostic)  │
+│                   + Phase 3 metadata (lifecycle, private,   │
+│                     category, examples)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -326,6 +339,221 @@ interface TokenFormatAdapter {
 ```
 
 Adapters translate vendor formats → internal `DesignToken[]`.
+
+---
+
+## Phase 3 Features: Production Search Experience
+
+**Added in:** v0.7.0  
+**Inspired by:** Dialtone MCP Server's excellent developer experience
+
+### Overview
+
+Phase 3 transforms token search from basic filtering into a production-ready, team-friendly feature with inline examples and smart defaults.
+
+### 1. Usage Examples System
+
+**Location:** `src/lib/types.ts` (types), `src/lib/formats/w3c-dt.ts` (parsing), `src/tools/search.ts` (display)
+
+**Purpose:** Show developers exactly how to use tokens in their framework of choice.
+
+**Token Example Format:**
+```json
+{
+  "semantic": {
+    "button": {
+      "primary": {
+        "background": {
+          "$value": "{color.blue.600}",
+          "$description": "Primary button background color",
+          "$examples": [
+            {
+              "framework": "css",
+              "code": ".btn-primary { background-color: var(--semantic-button-primary-background); }",
+              "description": "Apply to primary action button"
+            },
+            {
+              "framework": "react",
+              "code": "<button style={{ backgroundColor: tokens.semantic.button.primary.background }}>Click</button>"
+            },
+            {
+              "framework": "tailwind",
+              "code": "<button class=\"bg-button-primary\">Click</button>"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+**Supported Frameworks:** `css`, `scss`, `react`, `vue`, `svelte`, `html`, `tailwind`, `swift`, `kotlin`
+
+**Example Output in Search Results:**
+```markdown
+**semantic.button.primary.background**
+  Value: "{color.blue.600}"
+  Resolved: "#2563EB"
+  
+  Usage Examples:
+    CSS
+    ```css
+    .btn-primary {
+      background-color: var(--semantic-button-primary-background);
+    }
+    ```
+    
+    REACT
+    ```react
+    <button style={{ backgroundColor: tokens.semantic.button.primary.background }}>
+      Click
+    </button>
+    ```
+```
+
+### 2. Private Token Filtering
+
+**Purpose:** Hide internal/experimental tokens from production searches while allowing explicit access.
+
+**Token Format:**
+```json
+{
+  "experimental": {
+    "gradient": {
+      "$value": "linear-gradient(...)",
+      "$private": true,
+      "$lifecycle": "draft",
+      "$description": "Experimental gradient (internal use only)"
+    }
+  }
+}
+```
+
+**Search Behavior:**
+- **Default:** `{ text: "gradient" }` → excludes private tokens
+- **Explicit:** `{ text: "gradient", includePrivate: true }` → includes private tokens
+
+**Rationale:** Similar to lifecycle filtering, private tokens are excluded by default to guide users toward public, stable APIs. Design teams can experiment freely without polluting production searches.
+
+### 3. Category Filtering
+
+**Purpose:** Organize tokens into logical groups for easier discovery.
+
+**Token Format:**
+```json
+{
+  "button": {
+    "primary": {
+      "$value": "{color.blue.600}",
+      "$category": "components"
+    }
+  }
+}
+```
+
+**Common Categories:**
+- `core` — Base palette, primitives
+- `semantic` — Semantic layer tokens
+- `components` — Component-specific tokens
+- `spacing` — Spacing/sizing tokens
+- `typography` — Font/text tokens
+- `experiments` — Experimental tokens
+
+**Search Examples:**
+- `{ category: "components" }` — Show only component tokens
+- `{ text: "button", category: "components" }` — Find button component tokens
+
+### 4. Metadata Enrichment
+
+**New Metadata Fields:**
+
+```typescript
+interface DesignToken {
+  // Core (existing)
+  path: string;
+  value: unknown;
+  resolvedValue?: unknown;
+  type?: TokenType;
+  description?: string;
+  
+  // Phase 2
+  lifecycle?: "draft" | "active" | "deprecated";
+  deprecated?: { message: string; alternative?: string; removeBy?: string };
+  
+  // Phase 3 (new)
+  examples?: TokenExample[];           // Usage examples in multiple frameworks
+  private?: boolean;                    // Exclude from public searches
+  category?: string;                    // Grouping/filtering category
+  extensions?: Record<string, unknown>; // Arbitrary metadata
+  
+  // Metadata
+  source?: string;
+  sourceFormat?: TokenFormat;
+}
+```
+
+**W3C Format Support:**
+```json
+{
+  "token": {
+    "$value": "...",
+    "$type": "color",
+    "$description": "...",
+    "$lifecycle": "active",
+    "$private": false,
+    "$category": "components",
+    "$examples": [...]
+  }
+}
+```
+
+### 5. Project-Scoped Configuration
+
+**File:** `.mcp-ds.json` in project root
+
+**Purpose:** Team-wide search defaults and consistency.
+
+**Example Configuration:**
+```json
+{
+  "tokenPaths": ["tokens/**/*.json"],
+  "validation": {
+    "preset": "recommended"
+  },
+  "search": {
+    "includePrivate": false,
+    "includeDraft": false,
+    "showExamples": true,
+    "defaultCategories": ["components", "semantic"]
+  }
+}
+```
+
+**Search Config Options:**
+- `includePrivate` — Include private tokens by default (default: `false`)
+- `includeDraft` — Include draft tokens by default (default: `false`)
+- `showExamples` — Display usage examples in results (default: `true`)
+- `defaultCategories` — Filter to specific categories (omit to show all)
+
+### Implementation Notes
+
+**Smart Defaults Philosophy:**
+By default, searches exclude:
+- Draft tokens (`lifecycle: "draft"`)
+- Private tokens (`private: true`)
+
+This guides users toward production-ready, public APIs while allowing explicit access:
+```typescript
+// Production search (default)
+{ text: "button" }  // Excludes drafts & private
+
+// Include everything
+{ text: "button", lifecycle: "all", includePrivate: true }
+```
+
+**Inspired by Dialtone MCP Server:**
+Dialtone's approach of smart filtering and inline examples provides excellent DX. Phase 3 adopts these patterns while maintaining mcp-ds's broader scope (token architecture, not just retrieval).
 
 ---
 
@@ -1718,24 +1946,35 @@ function resolveReferences(tokenMap: TokenMap, maxDepth = 10) {
 
 ## Future Directions
 
-### Phase 1: Production Readiness
+### Phase 1: Production Readiness (v0.5.0) ✅ COMPLETE
 
-- [ ] Comprehensive test suite (unit + integration)
-- [ ] Token cache implementation
+- [x] Comprehensive test suite (33 tests, 100% pass rate)
+- [x] Interactive CLI mode (`npm run interactive`)
+- [x] Version checking on startup
+- [x] Automated test suite with Vitest
 - [ ] Reference cycle detection
 - [ ] Error handling improvements (structured errors, retry logic)
 - [ ] Performance profiling & optimization
-- [ ] CLI mode for non-MCP use
 
-### Phase 2: Visual Tools
+### Phase 2: Developer Experience (v0.6.0) ✅ COMPLETE
 
+- [x] Token caching with checksum-based invalidation (53% faster)
+- [x] Smart lifecycle filtering (draft/active/deprecated)
+- [x] Performance benchmarking utilities and script
+- [x] 5 new lifecycle filtering tests
 - [ ] Figma MCP integration (read variables, collections, screenshots)
 - [ ] Screenshot analysis via vision API
 - [ ] Component visual diff (before/after token changes)
 - [ ] Auto-detect components from screenshot
 
-### Phase 3: Advanced Intelligence
+### Phase 3: Production Polish (v0.7.0) ✅ COMPLETE
 
+- [x] Usage examples in multiple frameworks (CSS, React, Vue, Tailwind, etc.)
+- [x] Private token filtering (exclude internal tokens by default)
+- [x] Category filtering for token organization
+- [x] Metadata enrichment ($lifecycle, $private, $category, $examples)
+- [x] Project-scoped configuration (.mcp-ds.json)
+- [x] 8 new Phase 3 tests (33 total)
 - [ ] Token drift detection (track when designs diverge from system)
 - [ ] Usage analytics (which tokens are used where, consolidation opportunities)
 - [ ] AI-assisted component surface inference (analyze component code → generate surface)
@@ -2033,7 +2272,12 @@ The goal is to make design systems **AI-native**. Not just readable by AI, but e
 
 ---
 
-**Version:** 0.1.0  
-**Last Updated:** 2026-02-18  
+**Version:** 0.7.0  
+**Last Updated:** 2026-02-19  
 **Maintainer:** Human + AI collaboration  
 **License:** MIT
+
+**Changelog:**
+- **v0.7.0:** Phase 3 - Usage examples, private filtering, metadata (33 tests)
+- **v0.6.0:** Phase 2 - Caching, lifecycle filtering, benchmarking (25 tests, 53% faster)
+- **v0.5.0:** Phase 1 - Interactive CLI, version checking, test suite (21 tests)

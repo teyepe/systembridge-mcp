@@ -164,26 +164,45 @@
 
 ## Recommended Phasing
 
-### Phase 1 — Quick Wins (1–2 weeks)
+### Phase 1 — Developer Experience (v0.5.0) ✅ COMPLETE
 
-1. **Design system rules file generation** — auto-generate agent instruction files (`.cursorrules`, `.claude/instructions`) from ontology + token structure
-2. **Rename map export** — extend `suggestMigrations()` to output machine-readable JSON rename maps
-3. **Deprecation metadata** — support `$deprecated` in token parsing + emit warnings during validation
-4. **Token usage scanner** — grep codebase for `var(--token-name)` / token import references
+1. ✅ **Version checking on startup** — Implemented with update notifications
+2. ✅ **Interactive CLI mode** — `npm run interactive` for testing without MCP client
+3. ✅ **Automated test suite** — 33 tests with 100% pass rate (Vitest)
+4. **Design system rules file generation** — auto-generate agent instruction files (`.cursorrules`, `.claude/instructions`) from ontology + token structure
+5. **Rename map export** — extend `suggestMigrations()` to output machine-readable JSON rename maps
+6. **Deprecation metadata** — support `$deprecated` in token parsing + emit warnings during validation
+7. **Token usage scanner** — grep codebase for `var(--token-name)` / token import references
 
-### Phase 2 — Differentiation (2–4 weeks)
+### Phase 2 — Performance & Smart Filtering (v0.6.0) ✅ COMPLETE
 
-5. **Codemod generation** — produce ast-grep/jscodeshift scripts from rename maps
-6. **Figma variable import** — read Figma REST API variables, emit W3C DTCG JSON
-7. **Tailwind config generation** — new transform platform target
-8. **Token selection advisor** — "Which token should I use for a primary action button background?" natural language query tool
+5. ✅ **Smart lifecycle filtering** — draft/active/deprecated states with smart defaults
+6. ✅ **Token caching** — In-memory caching with checksum-based invalidation (53% faster)
+7. ✅ **Performance benchmarking** — Benchmark script and utilities
+8. **Codemod generation** — produce ast-grep/jscodeshift scripts from rename maps
+9. **Figma variable import** — read Figma REST API variables, emit W3C DTCG JSON
+10. **Tailwind config generation** — new transform platform target
+11. **Token selection advisor** — "Which token should I use for a primary action button background?" natural language query tool
 
-### Phase 3 — Ecosystem (4+ weeks)
+### Phase 3 — Production Polish (v0.7.0) ✅ COMPLETE
 
-9. **Storybook integration** — component prop extraction + story-aware token resolution
-10. **HTTP/SSE transport** — enable remote/shared MCP server deployment
-11. **Adoption analytics** — codebase scanning + unused token detection + structured reports
-12. **Color blindness simulation** — visual accessibility beyond contrast ratios
+9. ✅ **Usage examples system** — Multi-framework examples (CSS, React, Vue, Tailwind, etc.)
+10. ✅ **Private token filtering** — Exclude internal tokens by default
+11. ✅ **Category filtering** — Organize tokens by category
+12. ✅ **Metadata enrichment** — $lifecycle, $private, $category, $examples support
+13. ✅ **Project-scoped configuration** — .mcp-ds.json for team settings
+14. **Storybook integration** — component prop extraction + story-aware token resolution
+15. **HTTP/SSE transport** — enable remote/shared MCP server deployment
+16. **Adoption analytics** — codebase scanning + unused token detection + structured reports
+17. **Color blindness simulation** — visual accessibility beyond contrast ratios
+
+### Phase 4 — Ecosystem Integration (Future)
+
+18. **Figma bidirectional sync** — Push tokens to Figma, pull changes
+19. **Storybook MCP integration** — Component discovery and token usage analysis
+20. **Design system rules generation** — Auto-generate agent instructions
+21. **Codemod generation** — AST-based migration scripts
+22. **Adoption analytics** — Usage tracking and reporting
 
 ---
 
@@ -191,12 +210,29 @@
 
 These capabilities are **unique to mcp-ds** — no competitor has them:
 
+**Core Architecture:**
 - **Semantic ontology with property classes, intents, UX contexts, states, emphasis modifiers** — structured knowledge graph for token naming, not just key-value lookup
 - **Alias-aware lenient parsing** with confidence scoring — recognizes `bg`, `fg`, `surface`, `fill`, `primary`, `error` conventions alongside canonical IDs
-- **Automated contrast pair detection** — finds background↔text pairs by semantic analysis, not manual annotation
 - **Multi-dimensional theming** — color-scheme × density × brand as orthogonal dimensions with theme composition
+
+**Token Intelligence:**
+- **Automated contrast pair detection** — finds background↔text pairs by semantic analysis, not manual annotation
 - **Semantic scaffolding** — generates a complete semantic token structure from an ontology slice
 - **Coverage analysis** — identifies gaps in semantic token coverage against the ontology
 - **Migration suggestions** — proposes how to rename non-standard tokens to align with the ontology
+
+**Color & Palette:**
 - **Palette generation** with multiple strategies (HSL, Leonardo contrast-based, manual)
 - **Palette-to-semantics mapping** — auto-assigns generated palette colors to semantic roles
+- **WCAG 2.1 and APCA contrast validation** with automated recommendations
+
+**Developer Experience (Phase 1-3):**
+- **Smart lifecycle filtering** (v0.6.0) — Excludes draft tokens by default, guides to production-ready tokens
+- **Token caching** (v0.6.0) — 53% performance improvement with checksum-based invalidation
+- **Usage examples** (v0.7.0) — Multi-framework code examples (CSS, React, Vue, Tailwind, etc.)
+- **Private token filtering** (v0.7.0) — Hide internal tokens from production searches
+- **Category organization** (v0.7.0) — Smart token grouping and filtering
+- **Interactive CLI** (v0.5.0) — Test search quality without MCP client
+- **Version checking** (v0.5.0) — Auto-notify on updates
+- **Project-scoped config** (v0.7.0) — Team-wide settings via .mcp-ds.json
+- **Comprehensive test suite** (v0.5.0-v0.7.0) — 33 tests, 100% pass rate

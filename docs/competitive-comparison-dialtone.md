@@ -572,17 +572,20 @@ mcp-ds is broad, trying to serve all design token use cases.
 
 ## Recommendations for mcp-ds
 
-### Immediate Adoption (v0.6.0)
+### Immediate Adoption (v0.6.0) ✅ COMPLETE
 
-1. ✅ **Version checking on startup** — Copy Dialtone's `checkVersion()` function
+1. ✅ **Version checking on startup** — Implemented in Phase 1 (v0.5.0)
 2. ✅ **Interactive CLI** — `npm run interactive` for testing search quality
-3. ✅ **Automated test suite** — 50+ test cases for search accuracy
+3. ✅ **Automated test suite** — 33 test cases (100% pass rate)
 
-### Short-term Adoption (v0.7.0)
+### Short-term Adoption (v0.7.0) ✅ COMPLETE
 
-4. ✅ **Smart deprecated filtering** — Add `lifecycle` metadata to tokens
-5. ✅ **Project-scoped config** — Recommend `.mcp.json` in project root
+4. ✅ **Smart lifecycle filtering** — Implemented in Phase 2 (v0.6.0)
+5. ✅ **Project-scoped config** — `.mcp-ds.json` in project root
 6. ✅ **Usage examples in search** — Show inline examples like Dialtone
+7. ✅ **Private token filtering** — Exclude internal tokens by default
+8. ✅ **Category filtering** — Organize tokens by category
+9. ✅ **Metadata enrichment** — Comprehensive $lifecycle, $private, $category, $examples
 
 ### Long-term Consideration (v1.0.0)
 

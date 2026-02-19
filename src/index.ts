@@ -46,6 +46,7 @@ import {
   analyzeCoverageTool,
   checkContrastTool,
   analyzeTopologyTool,
+  generateRefactorScenariosTool,
 } from "./tools/semantics.js";
 import {
   generatePaletteTool,
@@ -704,6 +705,59 @@ server.tool(
       args,
       PROJECT_ROOT,
       config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- generate_refactor_scenarios ------------------------------------------
+
+server.tool(
+  "generate_refactor_scenarios",
+  "Generate migration scenarios for token refactoring with risk assessment. " +
+    "Produces 3 approaches (conservative, progressive, comprehensive) with detailed " +
+    "action plans, effort estimates, and risk profiles. Helps plan B→C token migration " +
+    "by comparing trade-offs and recommending best path forward based on readiness.",
+  {
+    pathPrefix: z
+      .string()
+      .optional()
+      .describe(
+        "Only analyze tokens starting with this prefix. Useful for scoped migrations.",
+      ),
+    riskTolerance: z
+      .enum(["conservative", "moderate", "aggressive"])
+      .optional()
+      .describe(
+        "Risk tolerance level affecting risk classifications. Default: moderate.",
+      ),
+    approaches: z
+      .array(z.enum(["conservative", "progressive", "comprehensive"]))
+      .optional()
+      .describe(
+        "Which scenario approaches to generate. Default: all three.",
+      ),
+    teamSize: z
+      .number()
+      .optional()
+      .describe(
+        "Team size for effort estimation. Default: 2 people.",
+      ),
+    hoursPerWeek: z
+      .number()
+      .optional()
+      .describe(
+        "Available hours per week for timeline estimation. Default: 20 hours/week.",
+      ),
+  },
+  async (args) => {
+    const { formatted } = await generateRefactorScenariosTool(
+      config,
+      args.pathPrefix,
+      args.riskTolerance,
+      args.approaches,
+      args.teamSize,
+      args.hoursPerWeek,
     );
     return { content: [{ type: "text" as const, text: formatted }] };
   },

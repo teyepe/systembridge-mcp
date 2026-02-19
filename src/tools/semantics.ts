@@ -47,6 +47,18 @@ import {
   type MergeStrategy,
 } from "../lib/io/writer.js";
 import {
+  assessMigrationRisk,
+  type MigrationRiskProfile,
+} from "../lib/migration/risk-assessment.js";
+import {
+  generateMigrationScenarios,
+  compareScenarios,
+  compareWithReferenceSystem,
+  type MigrationScenario,
+  type ScenarioComparison,
+  type ReferenceSystemComparison,
+} from "../lib/migration/scenarios.js";
+import {
   generateTopologyReport,
   visualizeDependencyGraph,
   visualizeCoverageMatrix,
@@ -767,3 +779,179 @@ export async function analyzeTopologyTool(
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// generate_refactor_scenarios — Migration Scenario Generator
+// ---------------------------------------------------------------------------
+
+export interface GenerateRefactorScenariosResult {
+  formatted: string;
+  json: {
+    riskProfile: MigrationRiskProfile;
+    scenarios: MigrationScenario[];
+    comparison: ScenarioComparison;
+    referenceComparison?: ReferenceSystemComparison;
+  };
+}
+
+/**
+ * Generate migration scenarios for token refactoring.
+ *
+ * Analyzes audit results and risk profile to produce 3 migration approaches:
+ * - Conservative: Minimal changes, low risk, fast timeline
+ * - Progressive: Balanced improvements, moderate risk, sustainable
+ * - Comprehensive: Complete transformation, higher risk, maximum value
+ *
+ * @param config - MCP-DS configuration
+ * @param pathPrefix - Optional filter for token paths
+ * @param riskTolerance - Risk tolerance level
+ * @param approaches - Which approaches to generate
+ * @param teamSize - Team size for effort estimation
+ * @param hoursPerWeek - Available hours per week
+ * @returns Migration scenarios with comparison and recommendations
+ */
+export async function generateRefactorScenariosTool(
+  config: McpDsConfig,
+  pathPrefix?: string,
+  riskTolerance: "conservative" | "moderate" | "aggressive" = "moderate",
+  approaches?: Array<"conservative" | "progressive" | "comprehensive">,
+  teamSize?: number,
+  hoursPerWeek?: number,
+): Promise<GenerateRefactorScenariosResult> {
+  // Load and resolve tokens
+  const allTokens = await loadAllTokens(config);
+  const tokens = resolveReferences(allTokens);
+
+  // Filter if prefix provided
+  let filteredTokens = tokens;
+  if (pathPrefix) {
+    filteredTokens = new Map(
+      [...tokens].filter(([path]) => path.startsWith(pathPrefix))
+    );
+  }
+
+  // Run audit
+  const auditResult = auditSemanticTokens(filteredTokens);
+
+  // Assess risk
+  const riskProfile = assessMigrationRisk(
+    filteredTokens,
+    auditResult.dependencies,
+    { riskTolerance }
+  );
+
+  // Generate scenarios
+  const scenarios = generateMigrationScenarios(auditResult, riskProfile, {
+    approaches,
+    riskTolerance,
+    teamSize,
+    availableHoursPerWeek: hoursPerWeek,
+  });
+
+  // Compare scenarios
+  const comparison = compareScenarios(scenarios);
+
+  // Format output
+  const lines: string[] = [];
+
+  lines.push(`## Migration Scenario Analysis`);
+  lines.push(``);
+
+  // Risk Profile Summary
+  lines.push(`### Risk Profile`);
+  lines.push(`- **Overall Risk:** ${riskProfile.overallRisk}/100 (${riskProfile.riskLevel})`);
+  lines.push(`- **High-Risk Tokens:** ${riskProfile.highRiskTokens.length}`);
+  lines.push(``);
+
+  lines.push(`#### Risk Dimensions`);
+  lines.push(`| Dimension | Score | Level | Key Factors |`);
+  lines.push(`|-----------|-------|-------|-------------|`);
+  for (const [dim, data] of Object.entries(riskProfile.dimensions)) {
+    const factor = data.factors[0] ?? "None";
+    lines.push(`| ${capitalize(dim)} | ${data.score}/100 | ${data.level} | ${factor} |`);
+  }
+  lines.push(``);
+
+  lines.push(`#### Readiness Indicators`);
+  lines.push(`- **Documentation:** ${(riskProfile.readiness.documentation * 100).toFixed(0)}%`);
+  lines.push(`- **Dependency Clarity:** ${(riskProfile.readiness.dependencyClarity * 100).toFixed(0)}%`);
+  lines.push(`- **Migration Path Clarity:** ${(riskProfile.readiness.migrationPathClarity * 100).toFixed(0)}%`);
+  lines.push(`- **Overall Readiness:** ${(riskProfile.readiness.overall * 100).toFixed(0)}%`);
+  lines.push(``);
+
+  // Scenarios
+  lines.push(`### Migration Scenarios`);
+  lines.push(``);
+
+  for (const scenario of scenarios) {
+    lines.push(`#### ${scenario.approach === comparison.recommended ? "⭐ " : ""}${scenario.name}`);
+    lines.push(scenario.description);
+    lines.push(``);
+
+    lines.push(`**Metrics:**`);
+    lines.push(`- Risk Score: ${scenario.riskScore}/100`);
+    lines.push(`- Estimated Effort: ${scenario.estimatedEffort} person-hours`);
+    lines.push(`- Timeline: ${scenario.estimatedDays} days`);
+    lines.push(`- Success Probability: ${(scenario.successProbability * 100).toFixed(0)}%`);
+    lines.push(`- Phases: ${scenario.phases.length}`);
+    lines.push(``);
+
+    lines.push(`**Benefits:**`);
+    scenario.benefits.forEach(b => lines.push(`- ${b}`));
+    lines.push(``);
+
+    lines.push(`**Challenges:**`);
+    scenario.challenges.forEach(c => lines.push(`- ${c}`));
+    lines.push(``);
+
+    lines.push(`**Prerequisites:**`);
+    scenario.prerequisites.forEach(p => lines.push(`- ${p}`));
+    lines.push(``);
+
+    lines.push(`**Phases:**`);
+    for (const phase of scenario.phases) {
+      lines.push(`${phase.phase}. **${phase.name}** (${phase.effort}h) — ${phase.description}`);
+      lines.push(`   - Actions: ${phase.actions.length}`);
+      lines.push(`   - Rollback: ${phase.rollbackPlan}`);
+    }
+    lines.push(``);
+  }
+
+  // Comparison
+  lines.push(`### Scenario Comparison`);
+  lines.push(``);
+  lines.push(comparison.reasoning);
+  lines.push(``);
+
+  lines.push(`#### Comparison Matrix`);
+  lines.push(`| Dimension | ${scenarios.map(s => s.name).join(" | ")} |`);
+  lines.push(`|-----------|${scenarios.map(() => "---").join("|")}|`);
+  for (const dim of comparison.matrix) {
+    const row = scenarios.map(s => dim.values[s.id]).join(" | ");
+    lines.push(`| ${dim.dimension} | ${row} |`);
+  }
+  lines.push(``);
+
+  // Recommendations
+  lines.push(`### Recommendations`);
+  riskProfile.recommendations.forEach(rec => lines.push(`- ${rec}`));
+  lines.push(``);
+
+  return {
+    formatted: lines.join("\n"),
+    json: {
+      riskProfile,
+      scenarios,
+      comparison,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+

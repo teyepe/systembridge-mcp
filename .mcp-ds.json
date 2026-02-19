@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/your-org/mcp-ds/main/schema.json",
+  "tokenPaths": [
+    "example-tokens/**/*.json"
+  ],
+  "validation": {
+    "preset": "recommended"
+  },
+  "transformation": {
+    "platforms": ["css", "js", "react"],
+    "buildPath": "build/"
+  },
+  "migration": {
+    "updateCodePatterns": [
+      "src/**/*.{css,scss,js,ts,jsx,tsx}"
+    ],
+    "excludePaths": [
+      "node_modules",
+      "dist",
+      "build"
+    ]
+  },
+  "search": {
+    "includePrivate": false,
+    "includeDraft": false,
+    "showExamples": true,
+    "defaultCategories": ["components", "semantic"]
+  }
+}

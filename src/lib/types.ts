@@ -32,6 +32,19 @@ export type TokenType =
 /** Token lifecycle state for smart filtering */
 export type TokenLifecycle = "draft" | "active" | "deprecated";
 
+/** Framework/language for usage examples */
+export type ExampleFramework = "css" | "scss" | "react" | "vue" | "svelte" | "html" | "tailwind" | "swift" | "kotlin";
+
+/** Usage example showing how to apply a token */
+export interface TokenExample {
+  /** Framework or language this example is for */
+  framework: ExampleFramework;
+  /** Code snippet showing token usage */
+  code: string;
+  /** Optional description or context */
+  description?: string;
+}
+
 /** A single resolved design token. */
 export interface DesignToken {
   /** Fully-qualified path, e.g. "color.primary.500". */
@@ -46,6 +59,12 @@ export interface DesignToken {
   description?: string;
   /** Lifecycle state: draft (experimental), active (production-ready), deprecated (being phased out). */
   lifecycle?: TokenLifecycle;
+  /** Usage examples showing how to apply this token in different frameworks */
+  examples?: TokenExample[];
+  /** Whether this token is private/internal (not for public consumption) */
+  private?: boolean;
+  /** Category for grouping (e.g., "spacing", "colors", "typography") */
+  category?: string;
   /** Arbitrary metadata the team wants to attach. */
   extensions?: Record<string, unknown>;
   /** Deprecation info if this token is being phased out. */
@@ -151,7 +170,19 @@ export interface McpDsConfig {
     excludePaths: string[];
   };
 
-  // -- Extensibility (Phase 2) --------------------------------------------
+  // -- Extensibility (Phase 2 & 3) ----------------------------------------
+
+  /** Search defaults for team consistency (Phase 3). */
+  search?: {
+    /** Include private tokens by default (default: false). */
+    includePrivate?: boolean;
+    /** Include draft tokens by default (default: false). */
+    includeDraft?: boolean;
+    /** Default categories to show (omit to show all). */
+    defaultCategories?: string[];
+    /** Show usage examples in search results (default: true). */
+    showExamples?: boolean;
+  };
 
   /** Multi-dimensional theming configuration. */
   theming?: DimensionsConfig;
@@ -178,6 +209,10 @@ export interface TokenSearchQuery {
   deprecated?: boolean;
   /** Filter by lifecycle state. If omitted, excludes draft tokens by default (like Dialtone). Set to 'all' to include everything. */
   lifecycle?: TokenLifecycle | "all";
+  /** Include private/internal tokens. By default, private tokens are excluded. */
+  includePrivate?: boolean;
+  /** Filter by category (e.g., "spacing", "colors"). */
+  category?: string;
   /** Return only tokens whose value matches this pattern (regex string). */
   valuePattern?: string;
 }
@@ -186,6 +221,8 @@ export interface TokenSearchResult {
   token: DesignToken;
   /** Why this result matched (which field matched the query). */
   matchReason: string;
+  /** Formatted usage examples for display */
+  formattedExamples?: string[];
 }
 
 // ---------------------------------------------------------------------------

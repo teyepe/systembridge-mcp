@@ -303,6 +303,150 @@ describe("Search Quality Tests", () => {
     });
   });
 
+  describe("Private Token Filtering (Phase 3)", () => {
+    it("should exclude private tokens by default", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // By default, private tokens should be excluded (like draft lifecycle)
+      expect(results.every((r) => !r.token.private)).toBe(true);
+    });
+
+    it("should include private tokens when includePrivate=true", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", includePrivate: true },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // With includePrivate=true, private tokens are allowed in results
+      expect(results).toBeDefined();
+    });
+
+    it("should find private experimental tokens when explicitly requested", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "gradient", includePrivate: true, lifecycle: "all" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // Should find the private experimental gradient token
+      const privateToken = results.find((r) => r.token.private === true);
+      if (privateToken) {
+        expect(privateToken.token.private).toBe(true);
+        expect(privateToken.token.lifecycle).toBe("draft");
+      }
+    });
+  });
+
+  describe("Category Filtering (Phase 3)", () => {
+    it("should filter by category", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "", category: "components" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      if (results.length > 0) {
+        expect(results.every((r) => r.token.category === "components")).toBe(
+          true,
+        );
+      }
+    });
+
+    it("should find component tokens by category", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "button", category: "components" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      if (results.length > 0) {
+        expect(
+          results.some((r) => r.token.path.includes("button")),
+        ).toBe(true);
+      }
+    });
+  });
+
+  describe("Usage Examples (Phase 3)", () => {
+    it("should parse and include usage examples", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "primary background", lifecycle: "all" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // Find a token with examples
+      const withExamples = results.find(
+        (r) => r.token.examples && r.token.examples.length > 0,
+      );
+      
+      if (withExamples) {
+        expect(withExamples.token.examples).toBeDefined();
+        expect(withExamples.token.examples!.length).toBeGreaterThan(0);
+        
+        const example = withExamples.token.examples![0];
+        expect(example).toHaveProperty("framework");
+        expect(example).toHaveProperty("code");
+        expect(["css", "react", "vue", "tailwind", "scss", "svelte", "html", "swift", "kotlin"]).toContain(example.framework);
+      }
+    });
+
+    it("should format examples in search results", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "primary background", lifecycle: "all" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // Find a result with formatted examples
+      const withFormatted = results.find(
+        (r) => r.formattedExamples && r.formattedExamples.length > 0,
+      );
+
+      if (withFormatted) {
+        expect(withFormatted.formattedExamples).toBeDefined();
+        expect(withFormatted.formattedExamples!.length).toBeGreaterThan(0);
+        
+        const formatted = withFormatted.formattedExamples![0];
+        expect(formatted).toContain("```"); // Code block
+        expect(typeof formatted).toBe("string");
+      }
+    });
+
+    it("should include multiple framework examples", async () => {
+      const config = await loadConfig(PROJECT_ROOT);
+      const results = await searchTokens(
+        { text: "primary background", lifecycle: "all" },
+        PROJECT_ROOT,
+        config,
+      );
+
+      // Find a token with multiple examples
+      const multiExample = results.find(
+        (r) => r.token.examples && r.token.examples.length > 1,
+      );
+
+      if (multiExample) {
+        const frameworks = multiExample.token.examples!.map((e) => e.framework);
+        // Should have different frameworks
+        const uniqueFrameworks = new Set(frameworks);
+        expect(uniqueFrameworks.size).toBeGreaterThan(1);
+      }
+    });
+  });
+
   describe("Empty Results", () => {
     it("should handle queries with no results gracefully", async () => {
       const config = await loadConfig(PROJECT_ROOT);

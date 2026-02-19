@@ -1,0 +1,113 @@
+{
+  "semantic": {
+    "button": {
+      "$type": "color",
+      "$description": "Button component tokens",
+      "$category": "components",
+      "primary": {
+        "background": {
+          "$value": "{color.blue.600}",
+          "$description": "Primary button background color",
+          "$lifecycle": "active",
+          "$category": "components",
+          "$examples": [
+            {
+              "framework": "css",
+              "code": ".btn-primary {\n  background-color: var(--semantic-button-primary-background);\n}",
+              "description": "Apply to primary action button"
+            },
+            {
+              "framework": "react",
+              "code": "import { tokens } from './tokens';\n\nfunction PrimaryButton() {\n  return (\n    <button style={{ backgroundColor: tokens.semantic.button.primary.background }}>\n      Click me\n    </button>\n  );\n}",
+              "description": "Use in React component"
+            },
+            {
+              "framework": "tailwind",
+              "code": "<button class=\"bg-button-primary hover:bg-button-primary-hover\">\n  Click me\n</button>",
+              "description": "Tailwind utility class"
+            }
+          ]
+        },
+        "hover": {
+          "$value": "{color.blue.700}",
+          "$description": "Primary button hover state",
+          "$lifecycle": "active",
+          "$category": "components",
+          "$examples": [
+            {
+              "framework": "css",
+              "code": ".btn-primary:hover {\n  background-color: var(--semantic-button-primary-hover);\n}"
+            }
+          ]
+        },
+        "text": {
+          "$value": "{color.white}",
+          "$description": "Primary button text color",
+          "$lifecycle": "active",
+          "$category": "components"
+        }
+      },
+      "secondary": {
+        "background": {
+          "$value": "{color.gray.100}",
+          "$description": "Secondary button background",
+          "$lifecycle": "active",
+          "$category": "components"
+        },
+        "text": {
+          "$value": "{color.gray.900}",
+          "$description": "Secondary button text",
+          "$lifecycle": "active",
+          "$category": "components"
+        }
+      },
+      "danger": {
+        "background": {
+          "$value": "{color.red.600}",
+          "$description": "Destructive action button",
+          "$lifecycle": "active",
+          "$category": "components",
+          "$examples": [
+            {
+              "framework": "css",
+              "code": ".btn-danger {\n  background-color: var(--semantic-button-danger-background);\n  color: var(--semantic-button-danger-text);\n}"
+            },
+            {
+              "framework": "react",
+              "code": "<Button variant=\"danger\" onClick={handleDelete}>\n  Delete\n</Button>",
+              "description": "Destructive action"
+            }
+          ]
+        },
+        "text": {
+          "$value": "{color.white}",
+          "$description": "Danger button text",
+          "$lifecycle": "active",
+          "$category": "components"
+        }
+      },
+      "experimental": {
+        "gradient": {
+          "$value": "linear-gradient(135deg, {color.blue.500}, {color.purple.500})",
+          "$description": "Experimental gradient button (do not use in production)",
+          "$lifecycle": "draft",
+          "$private": true,
+          "$category": "experiments"
+        }
+      },
+      "legacy": {
+        "blue": {
+          "$value": "{color.blue.500}",
+          "$description": "Legacy blue button - use primary instead",
+          "$lifecycle": "deprecated",
+          "$deprecated": {
+            "message": "Use semantic.button.primary.background instead",
+            "alternative": "semantic.button.primary.background",
+            "removeBy": "2026-06-01"
+          },
+          "$category": "components"
+        }
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ import type {
   TokenSearchQuery,
   TokenSearchResult,
   TokenLifecycle,
+  TokenExample,
 } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
 
@@ -89,13 +90,48 @@ export async function searchTokens(
       reasons.push(`value matches pattern /${query.valuePattern}/`);
     }
 
+    // Private token filter — exclude by default (like lifecycle drafts)
+    // Set includePrivate=true to show private/internal tokens
+    if (!query.includePrivate && token.private === true) {
+      continue; // Skip private tokens unless explicitly requested
+    }
+
+    // Category filter
+    if (query.category) {
+      if (token.category !== query.category) continue;
+      reasons.push(`category is "${query.category}"`);
+    }
+
+    // Format usage examples if present
+    const formattedExamples = token.examples
+      ? formatExamples(token.examples, token.path)
+      : undefined;
+
     results.push({
       token,
       matchReason: reasons.join("; ") || "matches all criteria",
+      formattedExamples,
     });
   }
 
   return results;
+}
+
+/**
+ * Format usage examples for display in search results.
+ */
+function formatExamples(examples: TokenExample[], tokenPath: string): string[] {
+  return examples.map((example) => {
+    const lines: string[] = [];
+    const header = example.description
+      ? `${example.framework.toUpperCase()} - ${example.description}`
+      : `${example.framework.toUpperCase()}`;
+    lines.push(header);
+    lines.push(`\`\`\`${example.framework}`);
+    lines.push(example.code.trim());
+    lines.push("```");
+    return lines.join("\n");
+  });
 }
 
 /**
@@ -108,7 +144,7 @@ export function formatSearchResults(results: TokenSearchResult[]): string {
 
   const lines: string[] = [`Found ${results.length} token(s):\n`];
 
-  for (const { token, matchReason } of results) {
+  for (const { token, matchReason, formattedExamples } of results) {
     const parts = [`  **${token.path}**`];
     parts.push(`    Value: ${JSON.stringify(token.value)}`);
     if (
@@ -118,7 +154,10 @@ export function formatSearchResults(results: TokenSearchResult[]): string {
       parts.push(`    Resolved: ${JSON.stringify(token.resolvedValue)}`);
     }
     if (token.type) parts.push(`    Type: ${token.type}`);
+    if (token.category) parts.push(`    Category: ${token.category}`);
     if (token.description) parts.push(`    Description: ${token.description}`);
+    if (token.lifecycle) parts.push(`    Lifecycle: ${token.lifecycle}`);
+    if (token.private) parts.push(`    🔒 Private (internal use only)`);
     if (token.deprecated) {
       parts.push(
         `    ⚠ DEPRECATED: ${token.deprecated.message}` +
@@ -127,7 +166,20 @@ export function formatSearchResults(results: TokenSearchResult[]): string {
             : ""),
       );
     }
-    if (token.source) parts.push(`    Source: ${token.source}`);
+    
+    // Add usage examples inline (Dialtone-style)
+    if (formattedExamples && formattedExamples.length > 0) {
+      parts.push(`\n    Usage Examples:`);
+      for (const exampleText of formattedExamples) {
+        const indented = exampleText
+          .split("\n")
+          .map((line) => `      ${line}`)
+          .join("\n");
+        parts.push(indented);
+      }
+    }
+    
+    if (token.source) parts.push(`\n    Source: ${token.source}`);
     parts.push(`    Match: ${matchReason}`);
     lines.push(parts.join("\n"));
   }

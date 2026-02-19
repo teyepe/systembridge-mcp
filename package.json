@@ -1,6 +1,6 @@
 {
   "name": "mcp-ds",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Design System MCP Server — token management, transformation, validation, and evolution",
   "main": "dist/index.js",
   "bin": {

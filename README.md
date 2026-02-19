@@ -173,14 +173,18 @@ Three tools designed to solve common designer pain points:
 
 ### **Token Management**
 
-- **search_tokens** — Find tokens by name, value, type, lifecycle state, or content
+- **search_tokens** — Find tokens by name, value, type, lifecycle state, privacy, and content
   - **Smart lifecycle filtering** (Phase 2): Excludes draft tokens by default to guide users toward production-ready tokens
+  - **Private token filtering** (Phase 3): Excludes internal/private tokens unless explicitly requested
+  - **Usage examples** (Phase 3): Inline code examples in CSS, React, Vue, Tailwind, and more
+  - **Category filtering** (Phase 3): Group and filter tokens by category (components, semantic, etc.)
   - **Lifecycle states**: `draft` (experimental), `active` (production-ready), `deprecated` (being phased out)
   - **Query examples**:
-    - `{ text: "blue", type: "color" }` — Find blue color tokens (excludes drafts)
+    - `{ text: "blue", type: "color" }` — Find blue color tokens (excludes drafts & private)
     - `{ lifecycle: "all" }` — Include all tokens regardless of lifecycle state
-    - `{ lifecycle: "draft" }` — Show only experimental/draft tokens
-    - `{ lifecycle: "active" }` — Show only production-ready tokens
+    - `{ includePrivate: true }` — Include private/internal tokens in results
+    - `{ category: "components" }` — Show only component-level tokens
+    - `{ text: "button primary" }` — Find button primary tokens with usage examples
 - **validate_tokens** — Check naming conventions, type correctness, and structure
 - **transform_tokens** — Convert between formats (W3C DTCG, Tokens Studio, Style Dictionary)
 
@@ -557,22 +561,28 @@ npm run test:coverage
 - **Semantic Queries:** Action accent, surface danger
 - **Filtering:** Type filters (color, dimension), deprecated token handling
 - **Lifecycle Filtering (Phase 2):** Draft/active/deprecated state filtering
+- **Private Token Filtering (Phase 3):** Private token exclusion/inclusion
+- **Category Filtering (Phase 3):** Category-based token grouping
+- **Usage Examples (Phase 3):** Example parsing, formatting, multi-framework support
 - **Path Prefix:** Filtering by token path prefix
 - **Empty Results:** Graceful handling of no-match queries
 - **Result Structure:** Schema validation, proper token formatting
 
 **Example Test Output:**
 ```
-✓ Search Quality Tests (21 tests)
+✓ Search Quality Tests (29 tests)
   ✓ Color Queries (3 tests)
   ✓ Spacing Queries (2 tests)
   ✓ Typography Queries (2 tests)
   ✓ Filtering (4 tests)
-  ✓ Lifecycle Filtering (5 tests)
+  ✓ Lifecycle Filtering (5 tests) — Phase 2
+  ✓ Private Token Filtering (3 tests) — Phase 3
+  ✓ Category Filtering (2 tests) — Phase 3
+  ✓ Usage Examples (3 tests) — Phase 3
 ✓ Tool Integration Tests (4 tests)
 
 Test Files  2 passed (2)
-     Tests  25 passed (25)
+     Tests  33 passed (33)
 ```
 
 ### Token Caching (Phase 2)
@@ -626,6 +636,86 @@ npm run benchmark
 
 Tip: Caching is most effective with large token sets.
 ```
+
+### Usage Examples & Metadata Enrichment (Phase 3)
+
+Tokens can include inline usage examples and enriched metadata to guide developers:
+
+**Token with Examples:**
+```json
+{
+  "semantic": {
+    "button": {
+      "primary": {
+        "background": {
+          "$value": "{color.blue.600}",
+          "$description": "Primary button background color",
+          "$lifecycle": "active",
+          "$category": "components",
+          "$examples": [
+            {
+              "framework": "css",
+              "code": ".btn-primary { background-color: var(--semantic-button-primary-background); }",
+              "description": "Apply to primary action button"
+            },
+            {
+              "framework": "react",
+              "code": "<button style={{ backgroundColor: tokens.semantic.button.primary.background }}>Click</button>"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+**Supported Metadata Fields:**
+- `$lifecycle`: `draft` | `active` | `deprecated` — Token maturity state
+- `$private`: `boolean` — Mark as internal/private (excluded from search by default)
+- `$category`: `string` — Group tokens (e.g., "components", "semantic", "spacing")
+- `$examples`: `array` — Usage examples in multiple frameworks (CSS, React, Vue, Tailwind, etc.)
+- `$description`: `string` — Human-readable explanation
+
+**Search with Private & Category Filters:**
+```typescript
+// Exclude private tokens (default)
+{ text: "button" }
+
+// Include private/experimental tokens
+{ text: "button", includePrivate: true }
+
+// Filter by category
+{ category: "components" }
+
+// Combine filters
+{ text: "primary", category: "components", lifecycle: "active" }
+```
+
+### Project-Scoped Configuration (Phase 3)
+
+Create a `.mcp-ds.json` file in your project root for team-wide settings:
+
+```json
+{
+  "tokenPaths": ["tokens/**/*.json"],
+  "validation": {
+    "preset": "recommended"
+  },
+  "search": {
+    "includePrivate": false,
+    "includeDraft": false,
+    "showExamples": true,
+    "defaultCategories": ["components", "semantic"]
+  }
+}
+```
+
+**Search Configuration Options:**
+- `includePrivate`: Include private tokens by default (default: `false`)
+- `includeDraft`: Include draft tokens by default (default: `false`)
+- `showExamples`: Display usage examples in search results (default: `true`)
+- `defaultCategories`: Filter to specific categories (omit to show all)
 
 ### Type Checking
 

@@ -11,11 +11,20 @@
  *   - `com.mcp-ds.factory`    — generation metadata for system templates
  *   - `com.mcp-ds.deprecated` — structured deprecation info
  *   - `com.mcp-ds.figma`      — Figma collection / variable mapping
+ *
+ * Also parses Phase 3 metadata fields:
+ *   - `$lifecycle` — draft | active | deprecated
+ *   - `$private` — boolean flag for internal tokens
+ *   - `$category` — grouping category (e.g., "spacing", "colors")
+ *   - `$examples` — array of usage examples in different frameworks
  */
 import type {
   DesignToken,
   TokenFormatAdapter,
   TokenType,
+  TokenLifecycle,
+  TokenExample,
+  ExampleFramework,
 } from "../types.js";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -62,6 +71,41 @@ function extractDeprecation(
   return undefined;
 }
 
+/**
+ * Extract lifecycle state from $lifecycle field.
+ */
+function extractLifecycle(obj: Record<string, unknown>): TokenLifecycle | undefined {
+  const lifecycle = obj["$lifecycle"];
+  if (lifecycle === "draft" || lifecycle === "active" || lifecycle === "deprecated") {
+    return lifecycle;
+  }
+  return undefined;
+}
+
+/**
+ * Extract usage examples from $examples array.
+ */
+function extractExamples(obj: Record<string, unknown>): TokenExample[] | undefined {
+  const examples = obj["$examples"];
+  if (!Array.isArray(examples)) return undefined;
+  
+  const parsed: TokenExample[] = [];
+  for (const ex of examples) {
+    if (!isPlainObject(ex)) continue;
+    const framework = ex["framework"] as ExampleFramework | undefined;
+    const code = ex["code"];
+    if (!framework || typeof code !== "string") continue;
+    
+    parsed.push({
+      framework,
+      code,
+      description: ex["description"] as string | undefined,
+    });
+  }
+  
+  return parsed.length > 0 ? parsed : undefined;
+}
+
 function flattenW3C(
   obj: Record<string, unknown>,
   parentPath: string[],
@@ -85,6 +129,19 @@ function flattenW3C(
       sourceFormat: "w3c-design-tokens",
     };
 
+    // Parse Phase 3 metadata
+    const lifecycle = extractLifecycle(obj);
+    if (lifecycle) token.lifecycle = lifecycle;
+    
+    const privateFlag = obj["$private"];
+    if (privateFlag === true) token.private = true;
+    
+    const category = obj["$category"];
+    if (typeof category === "string") token.category = category;
+    
+    const examples = extractExamples(obj);
+    if (examples) token.examples = examples;
+
     if (extensions) {
       token.extensions = extensions;
     }
@@ -103,6 +160,10 @@ function flattenW3C(
     "$description",
     "$extensions",
     "$deprecated",
+    "$lifecycle",
+    "$private",
+    "$category",
+    "$examples",
   ]);
   for (const [key, child] of Object.entries(obj)) {
     if (metaKeys.has(key)) continue;

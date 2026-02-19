@@ -27,6 +27,8 @@
 
 ## 🚀 Quick Start
 
+> **💡 For local testing and development**, see [TESTING.md](TESTING.md) for a simpler setup using `npm link` without absolute paths.
+
 ### Prerequisites
 
 - **Node.js 18+** (check with `node --version`)
@@ -44,6 +46,9 @@ npm install
 
 # Build the server
 npm run build
+
+# Optional: Link globally for easier access
+npm link
 ```
 
 ### Connect to Claude Desktop
@@ -52,7 +57,26 @@ npm run build
    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-2. Add the mcp-ds server:
+2. Add the mcp-ds server using one of these methods:
+
+#### Option A: Using npm link (Recommended for testing)
+
+If you ran `npm link`, you can reference it by command name:
+
+```json
+{
+  "mcpServers": {
+    "mcp-ds": {
+      "command": "mcp-ds",
+      "env": {
+        "MCP_DS_PROJECT_ROOT": "/path/to/your/design/tokens"
+      }
+    }
+  }
+}
+```
+
+#### Option B: Direct path (works without npm link)
 
 ```json
 {
@@ -60,11 +84,31 @@ npm run build
     "mcp-ds": {
       "command": "node",
       "args": ["/absolute/path/to/mcp-ds/dist/index.js"],
-      "cwd": "/absolute/path/to/your/design/tokens"
+      "env": {
+        "MCP_DS_PROJECT_ROOT": "/path/to/your/design/tokens"
+      }
     }
   }
 }
 ```
+
+#### Option C: Using current working directory
+
+If you don't set `MCP_DS_PROJECT_ROOT`, the server will use the directory where it's launched. This is useful if you want to run it from your token directory:
+
+```json
+{
+  "mcpServers": {
+    "mcp-ds": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-ds/dist/index.js"],
+      "cwd": "/path/to/your/design/tokens"
+    }
+  }
+}
+```
+
+> **💡 Tip:** For testing with the included example tokens, use `MCP_DS_PROJECT_ROOT` pointing to the mcp-ds repository root, or omit it entirely to use the current directory.
 
 3. Restart Claude Desktop
 

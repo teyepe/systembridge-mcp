@@ -55,11 +55,12 @@ When working with design tokens:
 Design system MCP (systembridge-mcp) is available. Use it for:
 
 1. **Token discovery**: Always search_tokens before suggesting or creating tokens. Check for existing tokens that match the intent.
-2. **Color work**: Use generate_palette + map_palette_to_semantics + check_contrast. Never skip contrast validation for text/background pairs.
-3. **Semantic naming**: Follow propertyClass.uxContext.intent[.state] (e.g. background.action.accent.hover). Use describe_ontology when unsure.
-4. **Validation**: Run validate_tokens before committing token changes. Use audit_semantics for naming compliance.
-5. **Handoffs**: Use audit_design and design-handoff-review prompt when preparing designs for developers.
-6. **Migration**: Use analyze_topology and generate_refactor_scenarios before large token refactors.
+2. **Truncated results**: When search_tokens or resolve_theme/resolve_brand return "X of Y" (truncated), offer to fetch more by calling again with limit: Y. Do not report truncation as a failure.
+3. **Color work**: Use generate_palette + map_palette_to_semantics + check_contrast. Never skip contrast validation for text/background pairs.
+4. **Semantic naming**: Follow propertyClass.uxContext.intent[.state] (e.g. background.action.accent.hover). Use describe_ontology when unsure.
+5. **Validation**: Run validate_tokens before committing token changes. Use audit_semantics for naming compliance.
+6. **Handoffs**: Use audit_design and design-handoff-review prompt when preparing designs for developers.
+7. **Migration**: Use analyze_topology and generate_refactor_scenarios before large token refactors.
 ```
 
 ### Component-focused
@@ -71,6 +72,17 @@ When the user mentions components (button, input, card, modal, etc.):
 3. Use audit_design to check if their design has full token coverage.
 4. Use component-reference to research patterns across 50+ design systems if they ask "how do others do X?"
 ```
+
+---
+
+## When Results Are Truncated
+
+Tools like `search_tokens`, `resolve_theme`, and `resolve_brand` apply limits to reduce context usage. When you see output like "Found 50 of 200 token(s)" or "Showing 100 of 450 tokens":
+
+- **Do not report this as a failure.** The tool succeeded; results were truncated.
+- **Offer to fetch more** when the user might need the full set: "I found 200 matching tokens but only show the first 50. Would you like me to retrieve all 200?"
+- **Call again with a higher limit** when the user agrees. Use the suggested `limit` value from the truncation hint in the output.
+- **Let the user decide** whether more results are worth the extra tokens; don't auto-fetch large sets unless asked.
 
 ---
 

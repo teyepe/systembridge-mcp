@@ -8,9 +8,9 @@ Three tools designed to solve common designer pain points:
 
 | Tool | What it does | When to use it |
 |------|-------------|----------------|
-| **plan_flow** | Matches natural language descriptions to UI patterns, components, and token requirements | Starting a new feature, blank canvas syndrome |
+| **plan_flow** | Matches natural language descriptions to UI patterns, components, and token requirements | Starting a new feature, blank canvas syndrome (config: `limits.planFlowMaxPatterns`, default 5) |
 | **audit_design** | Checks component coverage, finds missing tokens, validates naming and accessibility | Before developer handoff, design QA |
-| **analyze_ui** | Identifies components and matches colors using perceptual distance (ΔE 2000) | Reverse-engineering designs, screenshot analysis |
+| **analyze_ui** | Identifies components and matches colors using perceptual distance (ΔE 2000) | Reverse-engineering designs, screenshot analysis (config: `limits.analyzeUiMaxColorMatches`, default 5) |
 
 ## Token Management
 
@@ -20,11 +20,12 @@ Three tools designed to solve common designer pain points:
   - Usage examples: Inline code examples in CSS, React, Vue, Tailwind, and more
   - Category filtering: Group and filter tokens by category (components, semantic, etc.)
   - Lifecycle states: `draft` (experimental), `active` (production-ready), `deprecated` (being phased out)
+  - Result limit: Default 50 (config: `search.defaultLimit` or `limits.search`); use `limit` param to override
   - Query examples:
     - `{ text: "blue", type: "color" }` — Find blue color tokens
     - `{ lifecycle: "all" }` — Include all tokens regardless of lifecycle state
     - `{ includePrivate: true }` — Include private/internal tokens
-    - `{ category: "components" }` — Show only component-level tokens
+    - `{ category: "components", limit: 25 }` — Show only component-level tokens, max 25 results
 - **validate_tokens** — Check naming conventions, type correctness, and structure
 - **transform_tokens** — Convert between formats (W3C DTCG, Tokens Studio, Style Dictionary)
 
@@ -43,8 +44,8 @@ Three tools designed to solve common designer pain points:
 
 ## Themes & Brands
 
-- **list_brands** / **resolve_brand** — Manage multiple brand identities
-- **list_themes** / **resolve_theme** — Theme resolution across dimensions (light/dark, density, etc.)
+- **list_brands** / **resolve_brand** — Manage multiple brand identities (config limit: `limits.resolveBrand`, default 100)
+- **list_themes** / **resolve_theme** — Theme resolution across dimensions (config limit: `limits.resolveTheme`, default 100)
 - **diff_brands** / **diff_themes** — Compare token sets across configurations
 
 ## Mathematical Scale System

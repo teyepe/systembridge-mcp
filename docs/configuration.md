@@ -69,7 +69,15 @@ Create a `.systembridge-mcp.json` in your project root for team-wide search sett
     "includePrivate": false,
     "includeDraft": false,
     "showExamples": true,
-    "defaultCategories": ["components", "semantic"]
+    "defaultCategories": ["components", "semantic"],
+    "defaultLimit": 50
+  },
+  "limits": {
+    "search": 50,
+    "resolveTheme": 100,
+    "resolveBrand": 100,
+    "planFlowMaxPatterns": 5,
+    "analyzeUiMaxColorMatches": 5
   }
 }
 ```
@@ -82,6 +90,21 @@ Create a `.systembridge-mcp.json` in your project root for team-wide search sett
 | `includeDraft` | `false` | Include draft tokens by default |
 | `showExamples` | `true` | Display usage examples in search results |
 | `defaultCategories` | `null` | Filter to specific categories (omit for all) |
+| `defaultLimit` | `50` | Max results from `search_tokens` (reduces context/token usage) |
+
+### Limits Configuration
+
+Override default result caps for tools that return large payloads. This reduces how much data gets injected into the AI context and helps manage token costs:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `limits.search` | `50` | `search_tokens` max results |
+| `limits.resolveTheme` | `100` | `resolve_theme` max tokens |
+| `limits.resolveBrand` | `100` | `resolve_brand` max tokens |
+| `limits.planFlowMaxPatterns` | `5` | `plan_flow` max UI patterns |
+| `limits.analyzeUiMaxColorMatches` | `5` | `analyze_ui` max color matches per input |
+
+Tool calls can still override these per-call via their `limit` or `maxPatterns` arguments.
 
 ## Token Metadata Fields
 
@@ -101,4 +124,4 @@ Tokens can include metadata for richer search and guidance:
 | `SYSTEMBRIDGE_MCP_CACHE` | Set to `"false"` to disable token caching | Enabled |
 | `SYSTEMBRIDGE_MCP_SKIP_VERSION_CHECK` | Set to `"true"` to disable update notifications | Enabled |
 
-Add these in your MCP server config under the `env` object.
+Design tokens live in project directories (not a single file or API). Use `SYSTEMBRIDGE_MCP_PROJECT_ROOT` when the MCP has no workspace (e.g. global mcp.json or Claude Desktop); project-level config infers it from cwd. Add these in your MCP server config under the `env` object.

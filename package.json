@@ -1,6 +1,6 @@
 {
   "name": "systembridge-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "System Bridge MCP Server — token management, transformation, validation, and evolution",
   "main": "dist/index.js",
   "bin": {

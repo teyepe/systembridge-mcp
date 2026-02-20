@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/teyepe/systembridge-mcp/compare/v1.0.2...v1.0.3) (2026-02-20)
+
+
+### Bug Fixes
+
+* **ci:** pin ESLint to v9 for Node 18 compatibility ([7d67094](https://github.com/teyepe/systembridge-mcp/commit/7d6709452aa3a582581a91be78dd81d8142cbf69))
+
 ## [1.0.2](https://github.com/teyepe/systembridge-mcp/compare/v1.0.1...v1.0.2) (2026-02-20)
 
 

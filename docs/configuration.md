@@ -17,6 +17,7 @@ Place the file in your project root (or in the directory pointed to by `SYSTEMBR
 ```json
 {
   "tokenPaths": ["tokens/**/*.json"],
+  "stylePaths": ["src/**/*.css", "src/**/*.scss", "styles/**/*.{css,scss}"],
   "validation": {
     "preset": "recommended"
   },
@@ -46,6 +47,12 @@ Place the file in your project root (or in the directory pointed to by `SYSTEMBR
 
 - **tokenPaths:** Array of glob patterns for token files. Example: `["tokens/**/*.json", "design-tokens/*.json"]`
 - Files can be anywhere; paths are relative to the project root.
+
+## Style Paths (extract_styles)
+
+- **stylePaths:** Array of glob patterns for CSS/SCSS files to scan when using `extract_styles`. Example: `["src/**/*.css", "src/**/*.scss", "styles/**/*.{css,scss}"]`
+- Default: `["src/**/*.css", "src/**/*.scss", "styles/**/*.css", "styles/**/*.scss"]`
+- Used when reverse-engineering design tokens from existing stylesheets.
 
 ## Token File Formats
 

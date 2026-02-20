@@ -78,6 +78,7 @@ import {
   generateFluidScaleTool,
 } from "./tools/scales.js";
 import { generateMakeGuidelinesTool } from "./tools/figma-make.js";
+import { extractStylesTool } from "./tools/styles.js";
 
 // ---------------------------------------------------------------------------
 // Resolve project root
@@ -1218,6 +1219,42 @@ server.tool(
   },
 );
 
+// ---- extract_styles -------------------------------------------------------
+
+server.tool(
+  "extract_styles",
+  "Extract design tokens from CSS and SCSS files. " +
+    "Reverse-engineers colors, spacing, typography from stylesheets. " +
+    "Use when project has styles but no design tokens. " +
+    "Scans for CSS custom properties (--var: value) and SCSS variables ($var: value).",
+  {
+    stylePaths: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Override config stylePaths. Default: src/**/*.{css,scss}, styles/**/*.{css,scss}"
+      ),
+    outputFormat: z
+      .enum(["w3c-design-tokens", "tokens-studio", "flat"])
+      .optional()
+      .describe("Output format (default: w3c-design-tokens)"),
+    writeToTokens: z
+      .boolean()
+      .optional()
+      .describe(
+        "Write extracted tokens to tokenPaths directory (default: false)"
+      ),
+  },
+  async (args) => {
+    const { formatted } = await extractStylesTool(
+      args as any,
+      PROJECT_ROOT,
+      config,
+    );
+    return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
 // ---- generate_component_docs ----------------------------------------------
 
 server.tool(
@@ -1682,7 +1719,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[systembridge-mcp] Server ready — 32 tools, 7 prompts, 1 resource`);
+  console.error(`[systembridge-mcp] Server ready — 33 tools, 7 prompts, 1 resource`);
 }
 
 main().catch((err) => {

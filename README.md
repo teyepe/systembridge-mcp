@@ -1,4 +1,4 @@
-# systembridge-mcp – System Bridge MCP Server
+# systembridge-mcp: MCP Server for Design Systems
 
 > An AI-native Model Context Protocol (MCP) server that gives LLMs and agents deep knowledge of design systems and design tokens, enabling intelligent design system evolution, token analysis, and designer-to-developer handoffs.
 
@@ -12,14 +12,14 @@
 
 **systembridge-mcp** teaches AI assistants (like Claude, GPT, or custom agents) how to work with your design system. Instead of just answering questions about design, the AI can:
 
-- **Understand your design tokens** — browse, search, and explain color palettes, spacing scales, and typography
-- **Plan new features** — describe what you need ("a login page"), get components and tokens required
-- **Audit designs before handoff** — check if your design has all the tokens it needs, find gaps, verify accessibility
-- **Match colors and components** — upload a screenshot or describe UI, get back what matches your system
-- **Generate and validate tokens** — create palettes, check WCAG contrast, scaffold semantic tokens
-- **Evolve your system** — transform tokens, migrate naming, manage themes and brands
+- **Understand your design tokens:** browse, search, and explain color palettes, spacing scales, and typography
+- **Plan new features:** describe what you need ("a login page"), get components and tokens required
+- **Audit designs before handoff:** check if your design has all the tokens it needs, find gaps, verify accessibility
+- **Match colors and components:** upload a screenshot or describe UI, get back what matches your system
+- **Generate and validate tokens:** create palettes, check WCAG contrast, scaffold semantic tokens
+- **Evolve your system:** transform tokens, migrate naming, manage themes and brands
 
-**Designers:** Think of it as a design system assistant that knows your token library. Ask "what blue for error states?" or "does this design have all the tokens it needs?" — no code required.
+**Designers:** Think of it as a design system assistant that knows your token library. Ask "what red for error states?" or "what tokens should I apply on this mockup?" — no code required.
 
 **Developers:** A programmatic interface to design tokens with AI-native tooling for analysis, transformation, and code generation.
 

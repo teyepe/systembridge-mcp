@@ -19,7 +19,7 @@ describe("Search Quality Tests", () => {
   describe("Color Queries", () => {
     it("should find blue color tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "blue", type: "color" },
         PROJECT_ROOT,
         config,
@@ -31,7 +31,7 @@ describe("Search Quality Tests", () => {
 
     it("should find primary color tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "primary" },
         PROJECT_ROOT,
         config,
@@ -45,7 +45,7 @@ describe("Search Quality Tests", () => {
 
     it("should find color by hex value", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "#007bff" },
         PROJECT_ROOT,
         config,
@@ -65,7 +65,7 @@ describe("Search Quality Tests", () => {
   describe("Spacing Queries", () => {
     it("should find spacing tokens by value", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "8", type: "dimension" },
         PROJECT_ROOT,
         config,
@@ -76,7 +76,7 @@ describe("Search Quality Tests", () => {
 
     it("should find spacing tokens by name", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "spacing", type: "dimension" },
         PROJECT_ROOT,
         config,
@@ -92,7 +92,7 @@ describe("Search Quality Tests", () => {
   describe("Typography Queries", () => {
     it("should find font family tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "font family" },
         PROJECT_ROOT,
         config,
@@ -107,7 +107,7 @@ describe("Search Quality Tests", () => {
 
     it("should find font weight tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "weight bold" },
         PROJECT_ROOT,
         config,
@@ -128,7 +128,7 @@ describe("Search Quality Tests", () => {
   describe("Semantic Queries", () => {
     it("should find action accent tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "action accent" },
         PROJECT_ROOT,
         config,
@@ -147,7 +147,7 @@ describe("Search Quality Tests", () => {
 
     it("should find surface danger tokens", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "surface danger" },
         PROJECT_ROOT,
         config,
@@ -168,7 +168,7 @@ describe("Search Quality Tests", () => {
   describe("Filtering", () => {
     it("should filter by type (color)", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", type: "color" },
         PROJECT_ROOT,
         config,
@@ -179,7 +179,7 @@ describe("Search Quality Tests", () => {
 
     it("should filter by type (dimension)", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", type: "dimension" },
         PROJECT_ROOT,
         config,
@@ -190,7 +190,7 @@ describe("Search Quality Tests", () => {
 
     it("should exclude deprecated tokens by default", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", deprecated: false },
         PROJECT_ROOT,
         config,
@@ -201,7 +201,7 @@ describe("Search Quality Tests", () => {
 
     it("should include deprecated tokens when requested", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", deprecated: true },
         PROJECT_ROOT,
         config,
@@ -216,7 +216,7 @@ describe("Search Quality Tests", () => {
   describe("Lifecycle Filtering (Phase 2)", () => {
     it("should exclude draft tokens by default", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "" },
         PROJECT_ROOT,
         config,
@@ -231,7 +231,7 @@ describe("Search Quality Tests", () => {
 
     it("should include draft tokens when lifecycle='all'", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", lifecycle: "all" },
         PROJECT_ROOT,
         config,
@@ -243,7 +243,7 @@ describe("Search Quality Tests", () => {
 
     it("should filter by specific lifecycle state", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", lifecycle: "active" },
         PROJECT_ROOT,
         config,
@@ -257,7 +257,7 @@ describe("Search Quality Tests", () => {
 
     it("should support lifecycle='draft' filter", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", lifecycle: "draft" },
         PROJECT_ROOT,
         config,
@@ -271,7 +271,7 @@ describe("Search Quality Tests", () => {
 
     it("should support lifecycle='deprecated' filter", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", lifecycle: "deprecated" },
         PROJECT_ROOT,
         config,
@@ -289,7 +289,7 @@ describe("Search Quality Tests", () => {
   describe("Path Prefix Filtering", () => {
     it("should filter by path prefix", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", pathPrefix: "color" },
         PROJECT_ROOT,
         config,
@@ -306,7 +306,7 @@ describe("Search Quality Tests", () => {
   describe("Private Token Filtering (Phase 3)", () => {
     it("should exclude private tokens by default", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "" },
         PROJECT_ROOT,
         config,
@@ -318,7 +318,7 @@ describe("Search Quality Tests", () => {
 
     it("should include private tokens when includePrivate=true", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", includePrivate: true },
         PROJECT_ROOT,
         config,
@@ -330,7 +330,7 @@ describe("Search Quality Tests", () => {
 
     it("should find private experimental tokens when explicitly requested", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "gradient", includePrivate: true, lifecycle: "all" },
         PROJECT_ROOT,
         config,
@@ -348,7 +348,7 @@ describe("Search Quality Tests", () => {
   describe("Category Filtering (Phase 3)", () => {
     it("should filter by category", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "", category: "components" },
         PROJECT_ROOT,
         config,
@@ -363,7 +363,7 @@ describe("Search Quality Tests", () => {
 
     it("should find component tokens by category", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "button", category: "components" },
         PROJECT_ROOT,
         config,
@@ -380,7 +380,7 @@ describe("Search Quality Tests", () => {
   describe("Usage Examples (Phase 3)", () => {
     it("should parse and include usage examples", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "primary background", lifecycle: "all" },
         PROJECT_ROOT,
         config,
@@ -404,7 +404,7 @@ describe("Search Quality Tests", () => {
 
     it("should format examples in search results", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "primary background", lifecycle: "all" },
         PROJECT_ROOT,
         config,
@@ -427,7 +427,7 @@ describe("Search Quality Tests", () => {
 
     it("should include multiple framework examples", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "primary background", lifecycle: "all" },
         PROJECT_ROOT,
         config,
@@ -450,7 +450,7 @@ describe("Search Quality Tests", () => {
   describe("Empty Results", () => {
     it("should handle queries with no results gracefully", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "xyznonexistenttoken123" },
         PROJECT_ROOT,
         config,
@@ -463,7 +463,7 @@ describe("Search Quality Tests", () => {
   describe("Result Structure", () => {
     it("should return properly structured results", async () => {
       const config = await loadConfig(PROJECT_ROOT);
-      const results = await searchTokens(
+      const { results } = await searchTokens(
         { text: "color" },
         PROJECT_ROOT,
         config,

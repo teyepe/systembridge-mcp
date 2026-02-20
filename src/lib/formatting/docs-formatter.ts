@@ -240,6 +240,7 @@ function formatSvelteExample(componentName: string, metadata: ComponentMetadata)
 
 function escapeMarkdown(text: string): string {
   return text
+    .replace(/\\/g, "\\\\") // escape backslash first to avoid double-escaping issues
     .replace(/\|/g, "\\|")
     .replace(/\n/g, " ");
 }

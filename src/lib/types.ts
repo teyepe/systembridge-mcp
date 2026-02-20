@@ -143,6 +143,8 @@ export type ValidationPreset = "relaxed" | "recommended" | "strict";
 export interface McpDsConfig {
   /** Glob patterns for token files. */
   tokenPaths: string[];
+  /** Glob patterns for CSS/SCSS style files (for extract_styles). */
+  stylePaths?: string[];
   /** Preferred token format (auto-detect if omitted). */
   tokenFormat?: TokenFormat;
 

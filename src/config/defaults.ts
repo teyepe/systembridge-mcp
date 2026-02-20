@@ -16,6 +16,13 @@ export const DEFAULT_CONFIG: McpDsConfig = {
     "design-tokens/**/*.json",
   ],
 
+  stylePaths: [
+    "src/**/*.css",
+    "src/**/*.scss",
+    "styles/**/*.css",
+    "styles/**/*.scss",
+  ],
+
   validation: {
     preset: "recommended",
     customRules: [],

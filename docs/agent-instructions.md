@@ -15,6 +15,7 @@ Optional guidance for AI assistants that *use* systembridge-mcp. Add these instr
 | Migrating/refactoring tokens | `analyze_topology` → `generate_refactor_scenarios` → `execute_migration` | Manual find-replace without risk assessment |
 | Matching UI colors to tokens | `analyze_ui` (with hex colors) | Guessing closest token by name |
 | Planning new features | `plan_flow` | Jumping straight to implementation |
+| "Check my styles and create tokens" | `extract_styles` → `writeToTokens` or `scaffold_semantics` | Assuming tokens exist already |
 
 **Design-system-aware workflow:** Search first, validate before writing, use the semantic ontology for naming.
 
@@ -95,4 +96,5 @@ Tools like `search_tokens`, `resolve_theme`, and `resolve_brand` apply limits to
 - **"Audit my token system"** → `audit_semantics` + `analyze_coverage` (or `audit-tokens` prompt)
 - **"What do I need for a login page?"** → `plan_flow`
 - **"Does my design have everything?"** → `audit_design` (or `design-handoff-review` prompt)
+- **"Check my styles and create a design system"** → `extract_styles` with `writeToTokens: true`, then optionally `scaffold_semantics`
 - **"Help migrate my tokens"** → `analyze_topology` → `generate_refactor_scenarios` → `execute_migration`

@@ -90,7 +90,7 @@ For clients without a workspace concept, set the project root:
 ## After Configuration
 
 1. **Restart your AI assistant** so it picks up the new MCP server.
-2. **Look for the MCP icon** — you should see 32 tools available from systembridge-mcp.
+2. **Look for the MCP icon** — you should see 33 tools available from systembridge-mcp.
 
 ## Testing with Example Tokens
 
@@ -140,6 +140,7 @@ Override in `.systembridge-mcp.json` (see [Configuration](configuration.md)) or 
 - Add `.systembridge-mcp.json` or `systembridge-mcp.config.json` in your project root—the server discovers the root by walking up from cwd.
 - Or set `SYSTEMBRIDGE_MCP_PROJECT_ROOT` to point to your token directory.
 - Ensure `tokenPaths` in config matches your token file locations (see [configuration.md](./configuration.md)).
+- If your project has styles but no tokens, use `extract_styles` to reverse-engineer tokens from CSS/SCSS. Configure `stylePaths` to match your style file locations.
 
 **Tools not appearing:**
 - Restart your AI assistant after changing the config.

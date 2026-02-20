@@ -84,6 +84,14 @@ See [migration-system.md](./migration-system.md) and [migration-executor.md](./m
 
 See [figma-integration.md](./figma-integration.md) for the complete guide.
 
+## Style Extraction
+
+| Tool | What it does | Use case |
+|------|-------------|----------|
+| **extract_styles** | Extract design tokens from CSS and SCSS files (custom properties, SCSS variables) | Reverse-engineer tokens when project has styles but no token system |
+
+Use when the project has existing styles (CSS custom properties `--var`, SCSS variables `$var`) but no design token files. Output can be written to `tokenPaths` for use with other tools.
+
 ## System Generation
 
 - **generate_system** — One-command generation of a complete token system from config

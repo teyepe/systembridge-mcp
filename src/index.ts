@@ -28,6 +28,7 @@ import {
   searchTokens,
   formatSearchResults,
 } from "./tools/search.js";
+import type { TokenSearchQuery } from "./lib/types.js";
 import { validateTokensTool } from "./tools/validate.js";
 import { transformTokensTool } from "./tools/transform.js";
 import {
@@ -133,7 +134,9 @@ server.tool(
   "search_tokens",
   "Search and discover design tokens by name, type, value, or other criteria. " +
     "Use this to answer questions like 'What color tokens exist?', " +
-    "'Find all spacing tokens', or 'Show deprecated tokens'.",
+    "'Find all spacing tokens', or 'Show deprecated tokens'. " +
+    "When results are truncated (e.g. '50 of 200'), offer to fetch more by calling again with limit: <totalCount>. " +
+    "Do not report truncation as a failure.",
   {
     text: z
       .string()
@@ -176,10 +179,48 @@ server.tool(
       .string()
       .optional()
       .describe("Regex pattern to match against token values"),
+    limit: z
+      .number()
+      .optional()
+      .describe(
+        "Max results to return. Default from config (search.defaultLimit or limits.search) or 50.",
+      ),
+    lifecycle: z
+      .enum(["draft", "active", "deprecated", "all"])
+      .optional()
+      .describe(
+        "Filter by lifecycle. Omit or 'all' to include all. Default excludes draft unless config.search.includeDraft is true.",
+      ),
+    includePrivate: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include private/internal tokens. Default from config.search.includePrivate or false.",
+      ),
+    category: z
+      .string()
+      .optional()
+      .describe("Filter by category, e.g. 'spacing' or 'colors'"),
   },
   async (args) => {
-    const results = await searchTokens(args, PROJECT_ROOT, config);
-    const formatted = formatSearchResults(results);
+    const query: TokenSearchQuery = {
+      ...args,
+      limit:
+        args.limit ??
+        config.search?.defaultLimit ??
+        config.limits?.search ??
+        50,
+      includePrivate: args.includePrivate ?? config.search?.includePrivate ?? false,
+      lifecycle:
+        args.lifecycle ??
+        (config.search?.includeDraft ? "all" : undefined),
+    };
+    const { results, totalCount } = await searchTokens(
+      query,
+      PROJECT_ROOT,
+      config,
+    );
+    const formatted = formatSearchResults(results, totalCount);
     return {
       content: [
         {
@@ -307,7 +348,8 @@ server.tool(
 server.tool(
   "resolve_theme",
   "Resolve the full set of design tokens for a specific theme (or " +
-    "arbitrary coordinate set). Shows how tokens change from the default.",
+    "arbitrary coordinate set). Shows how tokens change from the default. " +
+    "When truncated, offer to fetch more by calling again with limit set to the total count.",
   {
     theme: z
       .string()
@@ -322,7 +364,9 @@ server.tool(
     limit: z
       .number()
       .optional()
-      .describe("Max number of tokens to return (default 100)"),
+      .describe(
+        "Max tokens to return. Default from config limits.resolveTheme or 100.",
+      ),
   },
   async (args) => {
     const { formatted } = await resolveThemeTool(args, PROJECT_ROOT, config);
@@ -368,7 +412,8 @@ server.tool(
 server.tool(
   "resolve_brand",
   "Resolve design tokens for a specific brand, optionally combined " +
-    "with a theme. Shows how brand overrides affect the token system.",
+    "with a theme. Shows how brand overrides affect the token system. " +
+    "When truncated, offer to fetch more by calling again with limit set to the total count.",
   {
     brand: z.string().describe("Brand ID from config"),
     theme: z
@@ -382,7 +427,9 @@ server.tool(
     limit: z
       .number()
       .optional()
-      .describe("Max number of tokens to return (default 100)"),
+      .describe(
+        "Max tokens to return. Default from config limits.resolveBrand or 100.",
+      ),
   },
   async (args) => {
     const { formatted } = await resolveBrandTool(args, PROJECT_ROOT, config);
@@ -976,7 +1023,9 @@ server.tool(
     maxPatterns: z
       .number()
       .optional()
-      .describe("Maximum number of UI patterns to suggest (default: 5)"),
+      .describe(
+        "Max UI patterns to suggest. Default from config limits.planFlowMaxPatterns or 5.",
+      ),
     includeScaffold: z
       .boolean()
       .optional()

@@ -27,11 +27,16 @@ function matchesText(token: DesignToken, text: string): string | null {
   return null;
 }
 
+export interface SearchTokensResult {
+  results: TokenSearchResult[];
+  totalCount: number;
+}
+
 export async function searchTokens(
   query: TokenSearchQuery,
   projectRoot: string,
   config: McpDsConfig,
-): Promise<TokenSearchResult[]> {
+): Promise<SearchTokensResult> {
   const tokenMap = await loadAllTokens(projectRoot, config);
   resolveReferences(tokenMap);
 
@@ -102,10 +107,12 @@ export async function searchTokens(
       reasons.push(`category is "${query.category}"`);
     }
 
-    // Format usage examples if present
-    const formattedExamples = token.examples
-      ? formatExamples(token.examples, token.path)
-      : undefined;
+    // Format usage examples if present (honour config.search.showExamples)
+    const showExamples = config.search?.showExamples !== false;
+    const formattedExamples =
+      showExamples && token.examples
+        ? formatExamples(token.examples, token.path)
+        : undefined;
 
     results.push({
       token,
@@ -114,7 +121,16 @@ export async function searchTokens(
     });
   }
 
-  return results;
+  // Apply limit: args > config.search.defaultLimit > config.limits.search > 50
+  const limit =
+    query.limit ??
+    config.search?.defaultLimit ??
+    config.limits?.search ??
+    50;
+  const limited = results.slice(0, limit);
+  const totalCount = results.length;
+
+  return { results: limited, totalCount };
 }
 
 /**
@@ -137,12 +153,25 @@ function formatExamples(examples: TokenExample[], tokenPath: string): string[] {
 /**
  * Render search results as a human-readable summary for the MCP response.
  */
-export function formatSearchResults(results: TokenSearchResult[]): string {
+export function formatSearchResults(
+  results: TokenSearchResult[],
+  totalCount?: number,
+): string {
   if (results.length === 0) {
     return "No tokens matched the search criteria.";
   }
 
-  const lines: string[] = [`Found ${results.length} token(s):\n`];
+  const countLabel =
+    totalCount !== undefined && totalCount > results.length
+      ? `${results.length} of ${totalCount}`
+      : `${results.length}`;
+  const lines: string[] = [`Found ${countLabel} token(s):\n`];
+
+  // When truncated, add actionable hint so the agent can offer to fetch more
+  const truncatedHint =
+    totalCount !== undefined && totalCount > results.length
+      ? `\n---\n_To retrieve all ${totalCount} results, call search_tokens again with limit: ${totalCount}._`
+      : "";
 
   for (const { token, matchReason, formattedExamples } of results) {
     const parts = [`  **${token.path}**`];
@@ -184,5 +213,5 @@ export function formatSearchResults(results: TokenSearchResult[]): string {
     lines.push(parts.join("\n"));
   }
 
-  return lines.join("\n\n");
+  return lines.join("\n\n") + truncatedHint;
 }

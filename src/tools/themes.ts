@@ -204,8 +204,10 @@ export async function resolveThemeTool(
     );
   }
 
-  // Apply limit.
-  const limited = args.limit ? tokens.slice(0, args.limit) : tokens;
+  // Apply limit: args > config.limits.resolveTheme > 100
+  const limit =
+    args.limit ?? config.limits?.resolveTheme ?? 100;
+  const limited = tokens.slice(0, limit);
 
   // Format output.
   const coordStr = projection.coordinates
@@ -226,8 +228,11 @@ export async function resolveThemeTool(
     lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}${ref}`);
   }
 
-  if (args.limit && tokens.length > args.limit) {
-    lines.push(`\n  ... and ${tokens.length - args.limit} more`);
+  if (tokens.length > limit) {
+    lines.push(`\n  ... and ${tokens.length - limit} more`);
+    lines.push(
+      `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_theme again with limit: ${tokens.length}._`,
+    );
   }
 
   return {

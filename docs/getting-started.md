@@ -50,6 +50,10 @@ npm link
 - **Cursor:** `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project)
 - **VS Code:** `~/Library/Application Support/Code/User/mcp.json` or `.vscode/mcp.json`
 
+### Why project root?
+
+Unlike MCPs that use a single file (e.g. `MEMORY_FILE_PATH`) or API keys, systembridge-mcp reads design token files from a directory tree. It needs to know where that project lives. When you use **project-level** MCP config, the process cwd is the project—so no path is needed. When you use **global** config or a client without workspaces (e.g. Claude Desktop), you must set `SYSTEMBRIDGE_MCP_PROJECT_ROOT` in `env`—same pattern as other MCP env vars.
+
 ### Zero-path setup (recommended)
 
 When using project-level MCP config (e.g. `.cursor/mcp.json`), the MCP process cwd is typically the project root. Config-file discovery also finds the root by walking up from cwd. No `SYSTEMBRIDGE_MCP_PROJECT_ROOT` needed.
@@ -115,6 +119,16 @@ If no config file is found, it uses sensible defaults and looks for tokens in `e
 For all configuration details (config file structure, env vars, token paths, project-scoped settings): [Configuration](configuration.md).
 
 **Optional:** [Agent Instructions](agent-instructions.md) — copy-paste templates for `.cursorrules` or `.claude/instructions` to improve AI token usage.
+
+## Cost & Efficiency
+
+Tool results are injected into the AI context; larger outputs cost more tokens. Default limits help keep usage reasonable:
+
+- **search_tokens:** Returns up to 50 results by default (config: `search.defaultLimit` or `limits.search`)
+- **resolve_theme / resolve_brand:** Up to 100 tokens by default (`limits.resolveTheme`, `limits.resolveBrand`)
+- **plan_flow:** Up to 5 patterns (`limits.planFlowMaxPatterns`)
+
+Override in `.systembridge-mcp.json` (see [Configuration](configuration.md)) or per-call via tool arguments.
 
 ## Troubleshooting
 

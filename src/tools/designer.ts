@@ -84,7 +84,11 @@ export async function planFlowTool(
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<PlanFlowResult> {
-  const { description, maxPatterns = 5, includeScaffold } = args;
+  const maxPatterns =
+    args.maxPatterns ??
+    config.limits?.planFlowMaxPatterns ??
+    5;
+  const { description, includeScaffold } = args;
 
   // 1. Match description to UI patterns
   const match = matchDescription(description, maxPatterns);
@@ -605,7 +609,8 @@ export async function analyzeUiTool(
       });
       continue;
     }
-    const matches = findClosestTokenColors(hex, tokenMap, 3, 15);
+    const maxMatches = config.limits?.analyzeUiMaxColorMatches ?? 5;
+    const matches = findClosestTokenColors(hex, tokenMap, maxMatches, 15);
     colorMatches.push({
       inputColor: hex,
       matches,

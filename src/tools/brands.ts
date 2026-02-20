@@ -181,7 +181,9 @@ export async function resolveBrandTool(
     if (args.pathPrefix) {
       tokens = tokens.filter((t) => t.path.startsWith(args.pathPrefix!));
     }
-    const limited = args.limit ? tokens.slice(0, args.limit) : tokens;
+    const limit =
+      args.limit ?? brandConfig.limits?.resolveBrand ?? 100;
+    const limited = tokens.slice(0, limit);
 
     const coordStr = projection.coordinates
       .map((c) => `${c.dimension}=${c.value}`)
@@ -195,6 +197,12 @@ export async function resolveBrandTool(
     for (const t of limited) {
       const val = t.resolvedValue ?? t.value;
       lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
+    }
+
+    if (tokens.length > limit) {
+      lines.push(
+        `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
+      );
     }
 
     return {
@@ -222,7 +230,8 @@ export async function resolveBrandTool(
   if (args.pathPrefix) {
     tokens = tokens.filter((t) => t.path.startsWith(args.pathPrefix!));
   }
-  const limited = args.limit ? tokens.slice(0, args.limit) : tokens;
+  const limit = args.limit ?? brandConfig.limits?.resolveBrand ?? 100;
+  const limited = tokens.slice(0, limit);
 
   const lines: string[] = [
     `**Brand "${brand.name}" resolved**`,
@@ -232,6 +241,12 @@ export async function resolveBrandTool(
   for (const t of limited) {
     const val = t.resolvedValue ?? t.value;
     lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
+  }
+
+  if (tokens.length > limit) {
+    lines.push(
+      `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
+    );
   }
 
   return {

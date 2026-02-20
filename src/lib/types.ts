@@ -182,6 +182,22 @@ export interface McpDsConfig {
     defaultCategories?: string[];
     /** Show usage examples in search results (default: true). */
     showExamples?: boolean;
+    /** Max results to return from search_tokens (default: 50). Overridable per-call. */
+    defaultLimit?: number;
+  };
+
+  /** Default limits for tools that return large result sets. Reduces context/token usage. */
+  limits?: {
+    /** search_tokens max results (default: 50). */
+    search?: number;
+    /** resolve_theme max tokens (default: 100). */
+    resolveTheme?: number;
+    /** resolve_brand max tokens (default: 100). */
+    resolveBrand?: number;
+    /** plan_flow max UI patterns to suggest (default: 5). */
+    planFlowMaxPatterns?: number;
+    /** analyze_ui max color matches per input color (default: 5). */
+    analyzeUiMaxColorMatches?: number;
   };
 
   /** Multi-dimensional theming configuration. */
@@ -215,6 +231,8 @@ export interface TokenSearchQuery {
   category?: string;
   /** Return only tokens whose value matches this pattern (regex string). */
   valuePattern?: string;
+  /** Max results to return. Falls back to config search.defaultLimit or limits.search, then 50. */
+  limit?: number;
 }
 
 export interface TokenSearchResult {

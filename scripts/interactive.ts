@@ -78,14 +78,14 @@ async function handleQuery(query: string) {
   const startTime = Date.now();
 
   try {
-    const results = await searchTokens(
+    const { results, totalCount } = await searchTokens(
       { text: query },
       PROJECT_ROOT,
       config,
     );
 
     const searchTime = Date.now() - startTime;
-    
+
     // Limit displayed results to first 15
     const displayResults = results.slice(0, 15);
 
@@ -93,8 +93,10 @@ async function handleQuery(query: string) {
       console.log(`${colors.yellow}No results found for "${query}"${colors.reset}`);
       console.log(`${colors.dim}Try different keywords or broader terms${colors.reset}`);
     } else {
+      const countLabel =
+        totalCount > 15 ? `${results.length} of ${totalCount}` : `${results.length}`;
       console.log(
-        `${colors.dim}Found ${results.length} result${results.length > 1 ? "s" : ""}${results.length > 15 ? " (showing first 15)" : ""} in ${searchTime}ms${colors.reset}`,
+        `${colors.dim}Found ${countLabel} result${results.length > 1 ? "s" : ""}${totalCount > 15 ? " (showing first 15)" : ""} in ${searchTime}ms${colors.reset}`,
       );
       console.log();
 

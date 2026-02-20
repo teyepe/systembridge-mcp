@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/teyepe/systembridge-mcp/compare/v1.0.1...v1.0.2) (2026-02-20)
+
+
+### Bug Fixes
+
+* **security:** address CodeQL findings - incomplete sanitization and workflow permissions ([eb58b03](https://github.com/teyepe/systembridge-mcp/commit/eb58b03cad5d6b9d99ae8256e39aafeb02012eda))
+
 # 1.0.0 (2026-02-20)
 
 

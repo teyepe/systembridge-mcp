@@ -1,3 +1,11 @@
+# [1.1.0](https://github.com/teyepe/systembridge-mcp/compare/v1.0.3...v1.1.0) (2026-02-20)
+
+
+### Features
+
+* **styles:** add stylePaths config for extract_styles ([9d955c0](https://github.com/teyepe/systembridge-mcp/commit/9d955c063064ee94af427b0dc9a6282ed9998d5d))
+* **styles:** implement extract_styles tool ([368c7ce](https://github.com/teyepe/systembridge-mcp/commit/368c7ce5a3fdb47b543c802cee885e0dc993691e))
+
 ## [1.0.3](https://github.com/teyepe/systembridge-mcp/compare/v1.0.2...v1.0.3) (2026-02-20)
 
 

@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/teyepe/systembridge-mcp/compare/v1.2.0...v1.3.0) (2026-03-06)
+
+
+### Features
+
+* **utils:** add intent-adaptive contrast pairing with policy modes ([9bf40c5](https://github.com/teyepe/systembridge-mcp/commit/9bf40c55e9111f8525dc7a5b3470f6ed38ad30d0))
+
 # [1.2.0](https://github.com/teyepe/systembridge-mcp/compare/v1.1.1...v1.2.0) (2026-03-06)
 
 

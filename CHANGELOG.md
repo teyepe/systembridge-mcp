@@ -1,3 +1,11 @@
+## [1.1.1](https://github.com/teyepe/systembridge-mcp/compare/v1.1.0...v1.1.1) (2026-03-06)
+
+
+### Bug Fixes
+
+* **ci:** harden provenance check against npm attestations outages ([a5c523b](https://github.com/teyepe/systembridge-mcp/commit/a5c523b6c5350f66af608303d04831ea6714f749))
+* **utils:** correct APCA Lc scaling and add contrast regression coverage ([d89300a](https://github.com/teyepe/systembridge-mcp/commit/d89300a78835d16c0d24b9082f18e590880e8679)), closes [hi#contrast](https://github.com/hi/issues/contrast)
+
 # [1.1.0](https://github.com/teyepe/systembridge-mcp/compare/v1.0.3...v1.1.0) (2026-02-20)
 
 

@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/teyepe/systembridge-mcp/compare/v1.1.1...v1.2.0) (2026-03-06)
+
+
+### Features
+
+* **utils:** add context-efficient analysis and verification tooling ([b0a591a](https://github.com/teyepe/systembridge-mcp/commit/b0a591a4eeed61d8b609931ba741159d01505953))
+
 ## [1.1.1](https://github.com/teyepe/systembridge-mcp/compare/v1.1.0...v1.1.1) (2026-03-06)
 
 

@@ -40,7 +40,10 @@ import {
 } from "../lib/semantics/scaffold.js";
 import {
   auditSemanticTokens,
+  analyzeContrastPairing,
   type SemanticAuditResult,
+  type AccessibilityAnalysis,
+  type PairingPolicy,
 } from "../lib/semantics/audit.js";
 import {
   writeTokenFiles,
@@ -594,12 +597,18 @@ export async function checkContrastTool(
     failuresOnly?: boolean;
     statsOnly?: boolean;
     outputMode?: string;
+    pairingPolicy?: string;
+    uxContext?: string;
+    intent?: string;
+    state?: string;
+    modifier?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<{ formatted: string; results: unknown }> {
   const algorithm = (args.algorithm as "wcag21" | "apca" | "both") ?? "both";
   const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+  const policy = (args.pairingPolicy as PairingPolicy) ?? "semantic-strict";
 
   // --- Mode 1: Explicit color values ---
   if (args.foreground && args.background) {
@@ -636,34 +645,59 @@ export async function checkContrastTool(
     config,
     { pathPrefixes },
   );
-  const { accessibility } = auditResult;
+
+  // Use custom policy pairing if non-default, otherwise reuse cached audit's result
+  let accessibility: AccessibilityAnalysis;
+  if (policy !== "semantic-strict") {
+    accessibility = analyzeContrastPairing(filteredMap, { policy });
+  } else {
+    accessibility = auditResult.accessibility;
+  }
+
+  // Apply intent filters to narrow results post-pairing
+  let filteredPairs = accessibility.pairs;
+  if (args.uxContext || args.intent || args.state || args.modifier) {
+    filteredPairs = filteredPairs.filter((p) => {
+      const ctx = p.context;
+      if (args.uxContext && !ctx.includes(args.uxContext)) return false;
+      if (args.intent && !ctx.includes(args.intent)) return false;
+      if (args.state && !ctx.includes(args.state)) return false;
+      if (args.modifier && !ctx.includes(args.modifier)) return false;
+      return true;
+    });
+  }
 
   const minRatio = args.threshold ? parseFloat(args.threshold) : undefined;
-  const failing = accessibility.pairs.filter((p) => {
+  const failing = filteredPairs.filter((p) => {
     if (!p.computable) return false;
     if (p.issue) return true;
     if (minRatio && p.contrast?.wcag21 && p.contrast.wcag21.ratio < minRatio) return true;
     return false;
   });
 
+  const { metrics } = accessibility;
+
   const structuredResults = {
-    totalPairs: accessibility.pairs.length,
-    computablePairs: accessibility.computablePairs,
-    wcagFailures: accessibility.wcagFailures,
-    apcaFailures: accessibility.apcaFailures,
+    totalPairs: filteredPairs.length,
+    computablePairs: filteredPairs.filter((p) => p.computable).length,
+    wcagFailures: failing.filter((p) => p.contrast?.wcag21?.levelNormal === "fail").length,
+    apcaFailures: failing.filter((p) => p.contrast?.apca && Math.abs(p.contrast.apca.lc) < 75).length,
     contrastScore: accessibility.contrastScore,
+    metrics,
     failingPairs: failing.map((p) => ({
       foreground: p.foregroundPath,
       background: p.backgroundPath,
       contrast: p.contrast,
       issue: p.issue,
+      confidence: p.confidence,
+      pairingReason: p.pairingReason,
     })),
   };
 
-  // Stats-only: just the numbers
+  // Stats-only: just the numbers + metrics
   if (args.statsOnly) {
     return {
-      formatted: `Pairs: ${accessibility.pairs.length} | Computable: ${accessibility.computablePairs} | WCAG fail: ${accessibility.wcagFailures} | APCA fail: ${accessibility.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}%`,
+      formatted: `Policy: ${metrics.policyUsed} | Pairs: ${filteredPairs.length} | Computable: ${structuredResults.computablePairs} | WCAG fail: ${structuredResults.wcagFailures} | APCA fail: ${structuredResults.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}% | Confidence: H${metrics.confidenceBuckets.high}/M${metrics.confidenceBuckets.medium}/L${metrics.confidenceBuckets.low}`,
       results: structuredResults,
     };
   }
@@ -671,12 +705,12 @@ export async function checkContrastTool(
   // ---- compact mode ----
   if (mode === "compact") {
     const lines: string[] = [
-      `Pairs: ${accessibility.pairs.length} | Computable: ${accessibility.computablePairs} | WCAG fail: ${accessibility.wcagFailures} | APCA fail: ${accessibility.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}%`,
+      `Policy: ${metrics.policyUsed} | Pairs: ${filteredPairs.length} | WCAG fail: ${structuredResults.wcagFailures} | APCA fail: ${structuredResults.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}% | Confidence: H${metrics.confidenceBuckets.high}/M${metrics.confidenceBuckets.medium}/L${metrics.confidenceBuckets.low}`,
     ];
     for (const pair of failing.slice(0, 20)) {
       const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
       const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
-      lines.push(`FAIL ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
+      lines.push(`FAIL [${pair.confidence}] ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
     }
     if (failing.length > 20) {
       lines.push(`[+${failing.length - 20} more failures]`);
@@ -687,8 +721,9 @@ export async function checkContrastTool(
   // ---- summary mode ----
   if (mode === "summary") {
     const lines: string[] = [
-      `Contrast audit: ${accessibility.pairs.length} pairs, score ${Math.round(accessibility.contrastScore * 100)}%`,
-      `Computable: ${accessibility.computablePairs} | WCAG failures: ${accessibility.wcagFailures} | APCA failures: ${accessibility.apcaFailures}`,
+      `Contrast audit (${metrics.policyUsed}): ${filteredPairs.length} pairs, score ${Math.round(accessibility.contrastScore * 100)}%`,
+      `Computable: ${structuredResults.computablePairs} | WCAG failures: ${structuredResults.wcagFailures} | APCA failures: ${structuredResults.apcaFailures}`,
+      `Confidence: ${metrics.confidenceBuckets.high} high, ${metrics.confidenceBuckets.medium} medium, ${metrics.confidenceBuckets.low} low | Fallback: ${metrics.fallbackPairsUsed} | Skipped: ${metrics.skippedPairs}`,
       "",
     ];
     if (failing.length > 0) {
@@ -696,7 +731,7 @@ export async function checkContrastTool(
       for (const pair of failing.slice(0, 10)) {
         const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
         const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
-        lines.push(`  ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
+        lines.push(`  [${pair.confidence}] ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
       }
       if (failing.length > 10) {
         lines.push(`  ... and ${failing.length - 10} more.`);
@@ -714,11 +749,26 @@ export async function checkContrastTool(
   const lines: string[] = [];
   lines.push("# Contrast Audit");
   lines.push("");
-  lines.push(`Scanned **${filteredMap.size}** tokens, found **${accessibility.pairs.length}** contrast pair(s).`);
-  lines.push(`Computable: **${accessibility.computablePairs}** | ` +
-    `WCAG failures: **${accessibility.wcagFailures}** | ` +
-    `APCA < 75: **${accessibility.apcaFailures}**`);
+  lines.push(`**Policy:** ${metrics.policyUsed}`);
+  lines.push(`Scanned **${filteredMap.size}** tokens, found **${filteredPairs.length}** contrast pair(s).`);
+  lines.push(`Computable: **${structuredResults.computablePairs}** | ` +
+    `WCAG failures: **${structuredResults.wcagFailures}** | ` +
+    `APCA < 75: **${structuredResults.apcaFailures}**`);
   lines.push(`Contrast score: **${Math.round(accessibility.contrastScore * 100)}%**`);
+  lines.push("");
+
+  // Pairing metrics section
+  lines.push("## Pairing Metrics");
+  lines.push("");
+  lines.push(`| Metric | Value |`);
+  lines.push(`|--------|-------|`);
+  lines.push(`| Policy | ${metrics.policyUsed} |`);
+  lines.push(`| Checked pairs | ${metrics.checkedPairs} |`);
+  lines.push(`| Skipped (unpaired) | ${metrics.skippedPairs} |`);
+  lines.push(`| Fallback pairs | ${metrics.fallbackPairsUsed} |`);
+  lines.push(`| High confidence | ${metrics.confidenceBuckets.high} |`);
+  lines.push(`| Medium confidence | ${metrics.confidenceBuckets.medium} |`);
+  lines.push(`| Low confidence | ${metrics.confidenceBuckets.low} |`);
   lines.push("");
 
   if (failing.length > 0) {
@@ -728,11 +778,12 @@ export async function checkContrastTool(
       lines.push(`### ${pair.context}`);
       lines.push(`- **FG:** \`${pair.foregroundPath}\` → ${pair.foregroundValue}`);
       lines.push(`- **BG:** \`${pair.backgroundPath}\` → ${pair.backgroundValue}`);
+      lines.push(`- **Confidence:** ${pair.confidence} — ${pair.pairingReason}`);
       if (pair.contrast) {
         lines.push(formatContrastResult(pair.contrast));
       }
       if (pair.issue) {
-        lines.push(`- ⚠️ ${pair.issue}`);
+        lines.push(`- ${pair.issue}`);
       }
       lines.push("");
     }
@@ -741,12 +792,12 @@ export async function checkContrastTool(
       lines.push("");
     }
   } else {
-    lines.push("✅ All computable pairs pass contrast thresholds.");
+    lines.push("All computable pairs pass contrast thresholds.");
     lines.push("");
   }
 
   if (!args.failuresOnly) {
-    const passing = accessibility.pairs.filter((p) => p.computable && !p.issue);
+    const passing = filteredPairs.filter((p) => p.computable && !p.issue);
     if (passing.length > 0) {
       lines.push("## Passing Pairs");
       lines.push("");
@@ -754,7 +805,7 @@ export async function checkContrastTool(
       for (const pair of passing.slice(0, 10)) {
         const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
         const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
-        lines.push(`- \`${pair.foregroundPath}\` on \`${pair.backgroundPath}\`: ratio ${ratio}:1, Lc ${lc}`);
+        lines.push(`- [${pair.confidence}] \`${pair.foregroundPath}\` on \`${pair.backgroundPath}\`: ratio ${ratio}:1, Lc ${lc}`);
       }
       if (passing.length > 10) {
         lines.push(`  ... and ${passing.length - 10} more.`);

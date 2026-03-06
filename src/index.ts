@@ -744,7 +744,8 @@ server.tool(
   "check_contrast",
   "Check color contrast ratios using WCAG 2.1 and/or APCA algorithms. " +
     "Two modes: (1) provide explicit foreground + background colors, or " +
-    "(2) scan your token set for all foreground/background pairs and report failures.",
+    "(2) scan your token set for all foreground/background pairs and report failures. " +
+    "Supports intent-adaptive pairing policies for different analysis goals.",
   {
     foreground: z
       .string()
@@ -790,6 +791,39 @@ server.tool(
       .optional()
       .describe(
         "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
+      ),
+    pairingPolicy: z
+      .enum(["semantic-strict", "semantic-relaxed", "exploratory-cross"])
+      .optional()
+      .describe(
+        "Pairing policy for contrast analysis. " +
+          "'semantic-strict' (default): pairs only within exact (uxContext, intent, modifier, state) groups — best for sign-off. " +
+          "'semantic-relaxed': strict first, then falls back to broader (uxContext, intent) grouping for unpaired tokens. " +
+          "'exploratory-cross': pairs all foregrounds with all backgrounds within the same uxContext — broadest diagnostics.",
+      ),
+    uxContext: z
+      .string()
+      .optional()
+      .describe(
+        "Filter results to pairs matching this UX context (e.g. 'action', 'input', 'surface').",
+      ),
+    intent: z
+      .string()
+      .optional()
+      .describe(
+        "Filter results to pairs matching this intent (e.g. 'accent', 'danger', 'base').",
+      ),
+    state: z
+      .string()
+      .optional()
+      .describe(
+        "Filter results to pairs matching this interaction state (e.g. 'hover', 'disabled').",
+      ),
+    modifier: z
+      .string()
+      .optional()
+      .describe(
+        "Filter results to pairs matching this emphasis modifier (e.g. 'strong', 'soft').",
       ),
   },
   async (args) => {

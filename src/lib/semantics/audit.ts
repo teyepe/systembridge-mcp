@@ -122,6 +122,22 @@ export interface CoverageCell {
 
 // ---- Accessibility ----
 
+export type PairingPolicy = "semantic-strict" | "semantic-relaxed" | "exploratory-cross";
+export type PairingConfidence = "high" | "medium" | "low";
+
+export interface PairingMetrics {
+  /** Which policy mode produced these pairs */
+  policyUsed: PairingPolicy;
+  /** Total pairs checked */
+  checkedPairs: number;
+  /** Tokens that couldn't be paired */
+  skippedPairs: number;
+  /** Pairs formed via fallback (relaxed or cross-intent) */
+  fallbackPairsUsed: number;
+  /** Distribution of pair confidence levels */
+  confidenceBuckets: { high: number; medium: number; low: number };
+}
+
 export interface AccessibilityAnalysis {
   /** Token pairs suitable for contrast checking */
   pairs: ContrastPair[];
@@ -135,6 +151,8 @@ export interface AccessibilityAnalysis {
   apcaFailures: number;
   /** Contrast score 0-1 (ratio of passing pairs to computable pairs) */
   contrastScore: number;
+  /** Policy-aware pairing metrics */
+  metrics: PairingMetrics;
 }
 
 export interface ContrastPair {
@@ -154,6 +172,12 @@ export interface ContrastPair {
   contrast?: ContrastResult;
   /** Issue description if contrast fails thresholds */
   issue?: string;
+  /** Which pairing policy produced this pair */
+  pairingPolicy: PairingPolicy;
+  /** Confidence level of this pairing */
+  confidence: PairingConfidence;
+  /** Why this pair was formed */
+  pairingReason: string;
 }
 
 // ---- Migration ----
@@ -286,6 +310,8 @@ export function auditSemanticTokens(
     skipRules?: string[];
     /** Optional Figma cross-reference data */
     figma?: CrossReferenceReport;
+    /** Pairing policy for contrast analysis (default: semantic-strict) */
+    pairingPolicy?: PairingPolicy;
   },
 ): SemanticAuditResult {
   // Optionally filter tokens
@@ -306,7 +332,7 @@ export function auditSemanticTokens(
     ? ALL_SCOPING_RULES.filter((r) => !skipSet.has(r.id)).map((r) => r.id)
     : undefined;
   const scoping = generateScopingReport(evaluateScoping(tokenSet, ruleIds));
-  const accessibility = analyzeAccessibility(tokenSet);
+  const accessibility = analyzeAccessibility(tokenSet, { policy: options?.pairingPolicy });
   const dependencies = analyzeDependencies(tokenSet);
   const antiPatterns = analyzeAntiPatterns(tokenSet);
   const migration = suggestMigrations(tokenSet);
@@ -444,112 +470,73 @@ function analyzeCoverage(tokens: Map<string, DesignToken>): CoverageAnalysis {
 }
 
 // ---------------------------------------------------------------------------
-// Accessibility analysis
+// Accessibility analysis — intent-adaptive pairing engine
 // ---------------------------------------------------------------------------
+
+interface ParsedColorToken {
+  path: string;
+  token: DesignToken;
+  parsed: SemanticTokenName;
+  isLenient: boolean;
+  role: "background" | "foreground";
+}
+
+/**
+ * Run accessibility contrast pairing with the specified policy.
+ * Exported for direct use by check_contrast when a custom policy is requested.
+ */
+export function analyzeContrastPairing(
+  tokens: Map<string, DesignToken>,
+  options?: { policy?: PairingPolicy },
+): AccessibilityAnalysis {
+  return analyzeAccessibility(tokens, options);
+}
 
 function analyzeAccessibility(
   tokens: Map<string, DesignToken>,
+  options?: { policy?: PairingPolicy },
 ): AccessibilityAnalysis {
+  const policy = options?.policy ?? "semantic-strict";
   const pairs: ContrastPair[] = [];
   const unpairedTokens: string[] = [];
 
-  // Group semantic tokens by (uxContext, intent, state)
-  // Uses strict parsing first, then falls back to lenient/alias-aware parsing
-  // so tokens like "color.bg.primary" or "fg.accent" are still detected.
-  const groups = new Map<
-    string,
-    { backgrounds: [string, DesignToken][]; foregrounds: [string, DesignToken][] }
-  >();
+  // Step 1: Parse all color tokens and classify their role
+  const parsedTokens: ParsedColorToken[] = [];
 
   for (const [path, token] of tokens) {
-    // Skip non-color tokens — only colors are relevant for contrast
     if (token.type && token.type !== "color") continue;
 
-    // Try strict parse first, then lenient
-    const parsed: SemanticTokenName | null =
-      parseSemanticPath(path) ?? parseSemanticPathLenient(path);
+    const strict = parseSemanticPath(path);
+    const lenient: SemanticTokenName | null = strict ? null : parseSemanticPathLenient(path);
+    const parsed = strict ?? lenient;
     if (!parsed) continue;
 
-    const key = [
-      parsed.uxContext ?? "_global",
-      parsed.intent,
-      parsed.modifier ?? "default",
-      parsed.state ?? "default",
-    ].join("::");
-
-    if (!groups.has(key)) {
-      groups.set(key, { backgrounds: [], foregrounds: [] });
-    }
-
+    let role: "background" | "foreground" | null = null;
     if (parsed.propertyClass === "background") {
-      groups.get(key)!.backgrounds.push([path, token]);
-    } else if (
-      parsed.propertyClass === "text" ||
-      parsed.propertyClass === "icon"
-    ) {
-      groups.get(key)!.foregrounds.push([path, token]);
+      role = "background";
+    } else if (parsed.propertyClass === "text" || parsed.propertyClass === "icon") {
+      role = "foreground";
     }
+    if (!role) continue;
+
+    parsedTokens.push({ path, token, parsed, isLenient: !strict, role });
   }
 
-  for (const [context, group] of groups) {
-    if (group.backgrounds.length === 0 && group.foregrounds.length > 0) {
-      unpairedTokens.push(
-        ...group.foregrounds.map(([p]) => p),
-      );
-    } else if (group.foregrounds.length === 0 && group.backgrounds.length > 0) {
-      unpairedTokens.push(
-        ...group.backgrounds.map(([p]) => p),
-      );
-    } else {
-      // Create pairs and compute contrast
-      for (const [bgPath, bgToken] of group.backgrounds) {
-        for (const [fgPath, fgToken] of group.foregrounds) {
-          const bgValue = String(bgToken.resolvedValue ?? bgToken.value);
-          const fgValue = String(fgToken.resolvedValue ?? fgToken.value);
-
-          const bgHex = resolveTokenColor(bgToken);
-          const fgHex = resolveTokenColor(fgToken);
-          const computable = !!(bgHex && fgHex);
-
-          let contrast: ContrastResult | undefined;
-          let issue: string | undefined;
-
-          if (computable) {
-            contrast = computeContrast(fgHex!, bgHex!, "both");
-
-            // Determine issues
-            const issues: string[] = [];
-            if (contrast.wcag21 && contrast.wcag21.levelNormal === "fail") {
-              issues.push(
-                `WCAG 2.1 AA fails for normal text (ratio ${contrast.wcag21.ratio.toFixed(2)}:1, need 4.5:1)`,
-              );
-            }
-            if (contrast.apca && Math.abs(contrast.apca.lc) < 60) {
-              issues.push(
-                `APCA below large-text threshold (Lc ${contrast.apca.lc.toFixed(1)}, need ≥60)`,
-              );
-            }
-            if (issues.length > 0) {
-              issue = issues.join("; ");
-            }
-          }
-
-          pairs.push({
-            backgroundPath: bgPath,
-            foregroundPath: fgPath,
-            backgroundValue: bgValue,
-            foregroundValue: fgValue,
-            context,
-            computable,
-            contrast,
-            issue,
-          });
-        }
-      }
-    }
+  // Step 2: Form pairs based on policy
+  let fallbackPairsUsed = 0;
+  switch (policy) {
+    case "semantic-strict":
+      fallbackPairsUsed = formStrictPairs(parsedTokens, pairs, unpairedTokens);
+      break;
+    case "semantic-relaxed":
+      fallbackPairsUsed = formRelaxedPairs(parsedTokens, pairs, unpairedTokens);
+      break;
+    case "exploratory-cross":
+      fallbackPairsUsed = formExploratoryCrossPairs(parsedTokens, pairs, unpairedTokens);
+      break;
   }
 
-  // Compute summary stats
+  // Step 3: Compute summary stats (invariant: deterministic formulas)
   const computablePairs = pairs.filter((p) => p.computable).length;
   const wcagFailures = pairs.filter(
     (p) => p.contrast?.wcag21?.levelNormal === "fail",
@@ -562,7 +549,287 @@ function analyzeAccessibility(
       ? (computablePairs - wcagFailures) / computablePairs
       : 1;
 
-  return { pairs, unpairedTokens, computablePairs, wcagFailures, apcaFailures, contrastScore };
+  const metrics: PairingMetrics = {
+    policyUsed: policy,
+    checkedPairs: pairs.length,
+    skippedPairs: unpairedTokens.length,
+    fallbackPairsUsed,
+    confidenceBuckets: {
+      high: pairs.filter((p) => p.confidence === "high").length,
+      medium: pairs.filter((p) => p.confidence === "medium").length,
+      low: pairs.filter((p) => p.confidence === "low").length,
+    },
+  };
+
+  return { pairs, unpairedTokens, computablePairs, wcagFailures, apcaFailures, contrastScore, metrics };
+}
+
+// ---------------------------------------------------------------------------
+// Pair-building helpers
+// ---------------------------------------------------------------------------
+
+function strictGroupKey(parsed: SemanticTokenName): string {
+  return [
+    parsed.uxContext ?? "_global",
+    parsed.intent,
+    parsed.modifier ?? "default",
+    parsed.state ?? "default",
+  ].join("::");
+}
+
+function buildContrastPair(
+  bg: ParsedColorToken,
+  fg: ParsedColorToken,
+  context: string,
+  policy: PairingPolicy,
+  confidence: PairingConfidence,
+  reason: string,
+): ContrastPair {
+  const bgValue = String(bg.token.resolvedValue ?? bg.token.value);
+  const fgValue = String(fg.token.resolvedValue ?? fg.token.value);
+  const bgHex = resolveTokenColor(bg.token);
+  const fgHex = resolveTokenColor(fg.token);
+  const computable = !!(bgHex && fgHex);
+
+  let contrast: ContrastResult | undefined;
+  let issue: string | undefined;
+
+  if (computable) {
+    contrast = computeContrast(fgHex!, bgHex!, "both");
+    const issues: string[] = [];
+    if (contrast.wcag21 && contrast.wcag21.levelNormal === "fail") {
+      issues.push(
+        `WCAG 2.1 AA fails for normal text (ratio ${contrast.wcag21.ratio.toFixed(2)}:1, need 4.5:1)`,
+      );
+    }
+    if (contrast.apca && Math.abs(contrast.apca.lc) < 60) {
+      issues.push(
+        `APCA below large-text threshold (Lc ${contrast.apca.lc.toFixed(1)}, need ≥60)`,
+      );
+    }
+    if (issues.length > 0) {
+      issue = issues.join("; ");
+    }
+  }
+
+  return {
+    backgroundPath: bg.path,
+    foregroundPath: fg.path,
+    backgroundValue: bgValue,
+    foregroundValue: fgValue,
+    context,
+    computable,
+    contrast,
+    issue,
+    pairingPolicy: policy,
+    confidence,
+    pairingReason: reason,
+  };
+}
+
+/**
+ * semantic-strict: pairs tokens only within exact (uxContext, intent, modifier, state) groups.
+ * Strict-parsed tokens get high confidence; lenient-parsed get medium.
+ */
+function formStrictPairs(
+  parsedTokens: ParsedColorToken[],
+  pairs: ContrastPair[],
+  unpairedTokens: string[],
+): number {
+  const groups = new Map<string, { backgrounds: ParsedColorToken[]; foregrounds: ParsedColorToken[] }>();
+
+  for (const pt of parsedTokens) {
+    const key = strictGroupKey(pt.parsed);
+    if (!groups.has(key)) {
+      groups.set(key, { backgrounds: [], foregrounds: [] });
+    }
+    if (pt.role === "background") {
+      groups.get(key)!.backgrounds.push(pt);
+    } else {
+      groups.get(key)!.foregrounds.push(pt);
+    }
+  }
+
+  for (const [context, group] of groups) {
+    if (group.backgrounds.length === 0 && group.foregrounds.length > 0) {
+      unpairedTokens.push(...group.foregrounds.map((pt) => pt.path));
+    } else if (group.foregrounds.length === 0 && group.backgrounds.length > 0) {
+      unpairedTokens.push(...group.backgrounds.map((pt) => pt.path));
+    } else {
+      for (const bg of group.backgrounds) {
+        for (const fg of group.foregrounds) {
+          const confidence: PairingConfidence = (bg.isLenient || fg.isLenient) ? "medium" : "high";
+          pairs.push(buildContrastPair(
+            bg, fg, context,
+            "semantic-strict", confidence,
+            `Exact semantic match: ${context}`,
+          ));
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * semantic-relaxed: strict matches first, then fallback to broader (uxContext, intent)
+ * grouping for any foreground left unpaired.
+ */
+function formRelaxedPairs(
+  parsedTokens: ParsedColorToken[],
+  pairs: ContrastPair[],
+  unpairedTokens: string[],
+): number {
+  let fallbackCount = 0;
+
+  const strictGroups = new Map<string, { backgrounds: ParsedColorToken[]; foregrounds: ParsedColorToken[] }>();
+  const broadGroups = new Map<string, { backgrounds: ParsedColorToken[]; foregrounds: ParsedColorToken[] }>();
+
+  for (const pt of parsedTokens) {
+    const strictKey = strictGroupKey(pt.parsed);
+    const broadKey = [pt.parsed.uxContext ?? "_global", pt.parsed.intent].join("::");
+
+    if (!strictGroups.has(strictKey)) {
+      strictGroups.set(strictKey, { backgrounds: [], foregrounds: [] });
+    }
+    if (!broadGroups.has(broadKey)) {
+      broadGroups.set(broadKey, { backgrounds: [], foregrounds: [] });
+    }
+
+    if (pt.role === "background") {
+      strictGroups.get(strictKey)!.backgrounds.push(pt);
+      broadGroups.get(broadKey)!.backgrounds.push(pt);
+    } else {
+      strictGroups.get(strictKey)!.foregrounds.push(pt);
+      broadGroups.get(broadKey)!.foregrounds.push(pt);
+    }
+  }
+
+  const pairedForegrounds = new Set<string>();
+
+  // Phase 1: exact matches (high confidence)
+  for (const [context, group] of strictGroups) {
+    if (group.backgrounds.length > 0 && group.foregrounds.length > 0) {
+      for (const bg of group.backgrounds) {
+        for (const fg of group.foregrounds) {
+          const confidence: PairingConfidence = (bg.isLenient || fg.isLenient) ? "medium" : "high";
+          pairs.push(buildContrastPair(
+            bg, fg, context,
+            "semantic-relaxed", confidence,
+            `Exact semantic match: ${context}`,
+          ));
+          pairedForegrounds.add(fg.path);
+        }
+      }
+    }
+  }
+
+  // Phase 2: fallback for foregrounds without a background in their strict group
+  for (const [, group] of strictGroups) {
+    if (group.backgrounds.length === 0 && group.foregrounds.length > 0) {
+      for (const fg of group.foregrounds) {
+        if (pairedForegrounds.has(fg.path)) continue;
+
+        const broadKey = [fg.parsed.uxContext ?? "_global", fg.parsed.intent].join("::");
+        const broadGroup = broadGroups.get(broadKey);
+
+        if (broadGroup && broadGroup.backgrounds.length > 0) {
+          for (const bg of broadGroup.backgrounds) {
+            pairs.push(buildContrastPair(
+              bg, fg, `${broadKey} (relaxed)`,
+              "semantic-relaxed", "medium",
+              `Relaxed match: same uxContext+intent, different modifier/state`,
+            ));
+            fallbackCount++;
+          }
+          pairedForegrounds.add(fg.path);
+        } else {
+          unpairedTokens.push(fg.path);
+        }
+      }
+    }
+  }
+
+  // Track unpaired backgrounds (no foreground in strict or broad group)
+  for (const [, group] of strictGroups) {
+    if (group.foregrounds.length === 0 && group.backgrounds.length > 0) {
+      for (const bg of group.backgrounds) {
+        const broadKey = [bg.parsed.uxContext ?? "_global", bg.parsed.intent].join("::");
+        const broadGroup = broadGroups.get(broadKey);
+        if (!broadGroup || broadGroup.foregrounds.length === 0) {
+          unpairedTokens.push(bg.path);
+        }
+      }
+    }
+  }
+
+  return fallbackCount;
+}
+
+/**
+ * exploratory-cross: pairs every foreground with every background within the same
+ * uxContext, regardless of intent. Useful for broad diagnostics.
+ */
+function formExploratoryCrossPairs(
+  parsedTokens: ParsedColorToken[],
+  pairs: ContrastPair[],
+  unpairedTokens: string[],
+): number {
+  const contextGroups = new Map<string, { backgrounds: ParsedColorToken[]; foregrounds: ParsedColorToken[] }>();
+
+  for (const pt of parsedTokens) {
+    const key = pt.parsed.uxContext ?? "_global";
+    if (!contextGroups.has(key)) {
+      contextGroups.set(key, { backgrounds: [], foregrounds: [] });
+    }
+    if (pt.role === "background") {
+      contextGroups.get(key)!.backgrounds.push(pt);
+    } else {
+      contextGroups.get(key)!.foregrounds.push(pt);
+    }
+  }
+
+  let fallbackCount = 0;
+
+  for (const [uxContext, group] of contextGroups) {
+    if (group.backgrounds.length === 0 && group.foregrounds.length > 0) {
+      unpairedTokens.push(...group.foregrounds.map((pt) => pt.path));
+    } else if (group.foregrounds.length === 0 && group.backgrounds.length > 0) {
+      unpairedTokens.push(...group.backgrounds.map((pt) => pt.path));
+    } else {
+      for (const bg of group.backgrounds) {
+        for (const fg of group.foregrounds) {
+          const sameIntent = bg.parsed.intent === fg.parsed.intent;
+          const sameModifier = (bg.parsed.modifier ?? "default") === (fg.parsed.modifier ?? "default");
+          const sameState = (bg.parsed.state ?? "default") === (fg.parsed.state ?? "default");
+
+          let confidence: PairingConfidence;
+          let reason: string;
+
+          if (sameIntent && sameModifier && sameState) {
+            confidence = "high";
+            reason = `Exact semantic match within ${uxContext}`;
+          } else if (sameIntent) {
+            confidence = "medium";
+            reason = `Same intent (${fg.parsed.intent}), different modifier/state within ${uxContext}`;
+          } else {
+            confidence = "low";
+            reason = `Cross-intent exploratory: ${fg.parsed.intent} on ${bg.parsed.intent} within ${uxContext}`;
+            fallbackCount++;
+          }
+
+          const context = `${uxContext}::${fg.parsed.intent}/${bg.parsed.intent}`;
+          pairs.push(buildContrastPair(
+            bg, fg, context,
+            "exploratory-cross", confidence, reason,
+          ));
+        }
+      }
+    }
+  }
+
+  return fallbackCount;
 }
 
 // ---------------------------------------------------------------------------

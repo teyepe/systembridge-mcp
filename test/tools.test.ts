@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import { loadConfig } from "../src/config/loader.js";
-import { describeOntologyTool } from "../src/tools/semantics.js";
+import { checkContrastTool, describeOntologyTool } from "../src/tools/semantics.js";
 import { listDimensionsTool } from "../src/tools/themes.js";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,6 +55,52 @@ describe("Tool Integration Tests", () => {
 
       expect(result.formatted).toBeTruthy();
       expect(typeof result.formatted).toBe("string");
+    });
+  });
+
+  describe("check_contrast Tool", () => {
+    it("should return APCA in expected Lc range for max-contrast pair", async () => {
+      const result = await checkContrastTool(
+        {
+          foreground: "#000000",
+          background: "#FFFFFF",
+          algorithm: "apca",
+        },
+        PROJECT_ROOT,
+        config,
+      );
+
+      const apca = (result.results as { apca?: { lc: number; level: string } }).apca;
+
+      expect(apca).toBeTruthy();
+      expect(Math.abs(apca!.lc)).toBeGreaterThan(100);
+      expect(apca!.level).toBe("body-text");
+      expect(result.formatted).toContain("APCA");
+      expect(result.formatted).toContain("body-text");
+    });
+
+    it("should report both WCAG and APCA when algorithm=both", async () => {
+      const result = await checkContrastTool(
+        {
+          foreground: "#777777",
+          background: "#FFFFFF",
+          algorithm: "both",
+        },
+        PROJECT_ROOT,
+        config,
+      );
+
+      const parsed = result.results as {
+        wcag21?: { ratio: number };
+        apca?: { lc: number };
+      };
+
+      expect(parsed.wcag21).toBeTruthy();
+      expect(parsed.apca).toBeTruthy();
+      expect(parsed.wcag21!.ratio).toBeGreaterThan(4);
+      expect(Math.abs(parsed.apca!.lc)).toBeGreaterThan(60);
+      expect(result.formatted).toContain("WCAG 2.1");
+      expect(result.formatted).toContain("APCA");
     });
   });
 });

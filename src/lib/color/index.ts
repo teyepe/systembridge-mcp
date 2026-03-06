@@ -191,7 +191,8 @@ export function computeApca(fg: string, bg: string): ApcaResult | null {
     lc = sapc > -APCA.loClip ? 0 : sapc + APCA.loWoBoffset;
   }
 
-  lc = Math.round(lc * 10) / 10;
+  // APCA returns Lc in roughly -108..108; scale from SAPC (-1..1) domain.
+  lc = Math.round(lc * 1000) / 10;
   const absLc = Math.abs(lc);
 
   let level: ApcaLevel;

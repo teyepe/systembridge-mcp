@@ -50,7 +50,7 @@
     "fast-glob": "^3.3.3",
     "glob": "^13.0.4",
     "json5": "^2.2.3",
-    "style-dictionary": "^5.3.1",
+    "style-dictionary": "^5.3.3",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },

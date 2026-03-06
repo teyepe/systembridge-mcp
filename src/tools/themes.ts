@@ -15,6 +15,12 @@ import {
   diffProjections,
   type TokenDiff,
 } from "../lib/themes/index.js";
+import {
+  type OutputMode,
+  resolveOutputMode,
+  compactTokenLine,
+  summaryTokenLine,
+} from "../lib/output.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -150,6 +156,12 @@ export interface ResolveThemeArgs {
   pathPrefix?: string;
   /** Max tokens to return (default: all). */
   limit?: number;
+  /** Skip the first N tokens (pagination). */
+  offset?: number;
+  /** Return only the total count. */
+  countOnly?: boolean;
+  /** Output verbosity: compact, summary, or full. */
+  outputMode?: OutputMode;
 }
 
 export interface ResolveThemeResult {
@@ -204,35 +216,76 @@ export async function resolveThemeTool(
     );
   }
 
-  // Apply limit: args > config.limits.resolveTheme > 100
-  const limit =
-    args.limit ?? config.limits?.resolveTheme ?? 100;
-  const limited = tokens.slice(0, limit);
+  // Apply offset + limit
+  const offset = args.offset ?? 0;
+  const limit = args.limit ?? config.limits?.resolveTheme ?? 100;
+  const limited = tokens.slice(offset, offset + limit);
+
+  // Count-only early return
+  if (args.countOnly) {
+    const coordStr = projection.coordinates
+      .map((c) => `${c.dimension}=${c.value}`)
+      .join(", ");
+    return {
+      coordinates: projection.coordinates,
+      count: tokens.length,
+      tokens: [],
+      formatted: `Theme (${coordStr}): ${tokens.length} tokens.`,
+    };
+  }
 
   // Format output.
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
   const coordStr = projection.coordinates
     .map((c) => `${c.dimension}=${c.value}`)
     .join(", ");
 
-  const lines: string[] = [
-    `**Theme resolved** (${coordStr})`,
-    `Showing ${limited.length} of ${tokens.length} tokens:\n`,
-  ];
+  let formatted: string;
 
-  for (const t of limited) {
-    const val = t.resolvedValue ?? t.value;
-    const ref =
-      t.resolvedValue !== undefined && t.resolvedValue !== t.value
-        ? ` (ref: ${JSON.stringify(t.value)})`
-        : "";
-    lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}${ref}`);
-  }
-
-  if (tokens.length > limit) {
-    lines.push(`\n  ... and ${tokens.length - limit} more`);
-    lines.push(
-      `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_theme again with limit: ${tokens.length}._`,
-    );
+  if (mode === "compact") {
+    const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length}/${tokens.length}` : `${limited.length}/${tokens.length}`;
+    const lines: string[] = [
+      `Theme: ${coordStr} | ${rangeLabel} tokens`,
+    ];
+    for (const t of limited) {
+      lines.push(compactTokenLine(t));
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(`[Use resolve_theme(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+    }
+    formatted = lines.join("\n");
+  } else if (mode === "summary") {
+    const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length} of ${tokens.length}` : `${limited.length} of ${tokens.length}`;
+    const lines: string[] = [
+      `**Theme resolved** (${coordStr}) — ${rangeLabel} tokens:`,
+    ];
+    for (const t of limited) {
+      lines.push(`  ${summaryTokenLine(t)}`);
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(`[Use resolve_theme(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+    }
+    formatted = lines.join("\n");
+  } else {
+    const lines: string[] = [
+      `**Theme resolved** (${coordStr})`,
+      `Showing ${limited.length} of ${tokens.length} tokens:\n`,
+    ];
+    for (const t of limited) {
+      const val = t.resolvedValue ?? t.value;
+      const ref =
+        t.resolvedValue !== undefined && t.resolvedValue !== t.value
+          ? ` (ref: ${JSON.stringify(t.value)})`
+          : "";
+      lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}${ref}`);
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(`\n  ... and ${tokens.length - offset - limited.length} more`);
+      lines.push(
+        `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_theme again with limit: ${tokens.length}._`,
+      );
+    }
+    formatted = lines.join("\n");
   }
 
   return {
@@ -244,7 +297,7 @@ export async function resolveThemeTool(
       resolvedValue: t.resolvedValue,
       type: t.type,
     })),
-    formatted: lines.join("\n"),
+    formatted,
   };
 }
 

@@ -9,10 +9,15 @@ import type {
   McpDsConfig,
   TokenSearchQuery,
   TokenSearchResult,
-  TokenLifecycle,
   TokenExample,
 } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
+import {
+  type OutputMode,
+  resolveOutputMode,
+  compactTokenLine,
+  summaryTokenLine,
+} from "../lib/output.js";
 
 function matchesText(token: DesignToken, text: string): string | null {
   const lower = text.toLowerCase();
@@ -111,7 +116,7 @@ export async function searchTokens(
     const showExamples = config.search?.showExamples !== false;
     const formattedExamples =
       showExamples && token.examples
-        ? formatExamples(token.examples, token.path)
+        ? formatExamples(token.examples)
         : undefined;
 
     results.push({
@@ -121,14 +126,29 @@ export async function searchTokens(
     });
   }
 
-  // Apply limit: args > config.search.defaultLimit > config.limits.search > 50
+  // Sort results
+  if (query.sortBy === "type") {
+    results.sort((a, b) => (a.token.type ?? "").localeCompare(b.token.type ?? ""));
+  } else if (query.sortBy === "value") {
+    results.sort((a, b) =>
+      String(a.token.resolvedValue ?? a.token.value).localeCompare(
+        String(b.token.resolvedValue ?? b.token.value),
+      ),
+    );
+  } else {
+    results.sort((a, b) => a.token.path.localeCompare(b.token.path));
+  }
+
+  const totalCount = results.length;
+
+  // Apply offset + limit
+  const offset = query.offset ?? 0;
   const limit =
     query.limit ??
     config.search?.defaultLimit ??
     config.limits?.search ??
     50;
-  const limited = results.slice(0, limit);
-  const totalCount = results.length;
+  const limited = results.slice(offset, offset + limit);
 
   return { results: limited, totalCount };
 }
@@ -136,7 +156,7 @@ export async function searchTokens(
 /**
  * Format usage examples for display in search results.
  */
-function formatExamples(examples: TokenExample[], tokenPath: string): string[] {
+function formatExamples(examples: TokenExample[]): string[] {
   return examples.map((example) => {
     const lines: string[] = [];
     const header = example.description
@@ -152,25 +172,70 @@ function formatExamples(examples: TokenExample[], tokenPath: string): string[] {
 
 /**
  * Render search results as a human-readable summary for the MCP response.
+ *
+ * @param outputMode  "compact" | "summary" | "full" (default: "full")
+ * @param countOnly   If true, return only the count line.
+ * @param offset      Current pagination offset (for hint text).
  */
 export function formatSearchResults(
   results: TokenSearchResult[],
   totalCount?: number,
+  outputMode?: OutputMode,
+  countOnly?: boolean,
+  offset?: number,
 ): string {
-  if (results.length === 0) {
+  const mode = resolveOutputMode(outputMode);
+  const total = totalCount ?? results.length;
+
+  if (countOnly) {
+    return `${total} token(s) match the criteria.`;
+  }
+
+  if (results.length === 0 && total === 0) {
     return "No tokens matched the search criteria.";
   }
 
+  if (results.length === 0 && total > 0) {
+    return `${total} token(s) match, but offset is beyond the result set.`;
+  }
+
+  const shown = results.length;
+  const off = offset ?? 0;
+
+  // ---- compact mode ----
+  if (mode === "compact") {
+    const rangeLabel = off > 0 ? `${off + 1}–${off + shown}/${total}` : `${shown}/${total}`;
+    const lines: string[] = [`${rangeLabel} tokens.`];
+    for (const { token } of results) {
+      lines.push(compactTokenLine(token));
+    }
+    if (off + shown < total) {
+      lines.push(`[Use search_tokens(offset: ${off + shown}, limit: ${shown}) for next page.]`);
+    }
+    return lines.join("\n");
+  }
+
+  // ---- summary mode ----
+  if (mode === "summary") {
+    const rangeLabel = off > 0 ? `${off + 1}–${off + shown} of ${total}` : `${shown} of ${total}`;
+    const lines: string[] = [`Found ${rangeLabel} token(s):`];
+    for (const { token } of results) {
+      lines.push(`  ${summaryTokenLine(token)}`);
+    }
+    if (off + shown < total) {
+      lines.push(`[Use search_tokens(offset: ${off + shown}, limit: ${shown}) for next page.]`);
+    }
+    return lines.join("\n");
+  }
+
+  // ---- full mode (backward-compatible) ----
   const countLabel =
-    totalCount !== undefined && totalCount > results.length
-      ? `${results.length} of ${totalCount}`
-      : `${results.length}`;
+    total > shown ? `${shown} of ${total}` : `${shown}`;
   const lines: string[] = [`Found ${countLabel} token(s):\n`];
 
-  // When truncated, add actionable hint so the agent can offer to fetch more
   const truncatedHint =
-    totalCount !== undefined && totalCount > results.length
-      ? `\n---\n_To retrieve all ${totalCount} results, call search_tokens again with limit: ${totalCount}._`
+    total > shown
+      ? `\n---\n_To retrieve all ${total} results, call search_tokens again with limit: ${total}._`
       : "";
 
   for (const { token, matchReason, formattedExamples } of results) {
@@ -195,8 +260,7 @@ export function formatSearchResults(
             : ""),
       );
     }
-    
-    // Add usage examples inline (Dialtone-style)
+
     if (formattedExamples && formattedExamples.length > 0) {
       parts.push(`\n    Usage Examples:`);
       for (const exampleText of formattedExamples) {
@@ -207,7 +271,7 @@ export function formatSearchResults(
         parts.push(indented);
       }
     }
-    
+
     if (token.source) parts.push(`\n    Source: ${token.source}`);
     parts.push(`    Match: ${matchReason}`);
     lines.push(parts.join("\n"));

@@ -202,6 +202,9 @@ export interface McpDsConfig {
     analyzeUiMaxColorMatches?: number;
   };
 
+  /** Default output mode for tools that support compact/summary/full formatting. */
+  defaultOutputMode?: "compact" | "summary" | "full";
+
   /** Multi-dimensional theming configuration. */
   theming?: DimensionsConfig;
 
@@ -235,6 +238,12 @@ export interface TokenSearchQuery {
   valuePattern?: string;
   /** Max results to return. Falls back to config search.defaultLimit or limits.search, then 50. */
   limit?: number;
+  /** Skip the first N results (for pagination). Default: 0. */
+  offset?: number;
+  /** Sort results by field. Default: path. */
+  sortBy?: "path" | "type" | "value";
+  /** Return only the total count, no token data. */
+  countOnly?: boolean;
 }
 
 export interface TokenSearchResult {

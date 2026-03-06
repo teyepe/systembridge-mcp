@@ -9,11 +9,16 @@
  *   - check_contrast:        Check contrast ratios for foreground/background pairs
  *   - analyze_topology:      Analyze token topology (dependencies, anti-patterns, structure)
  */
-import type { DesignToken, McpDsConfig } from "../lib/types.js";
+import type { McpDsConfig, TokenMap } from "../lib/types.js";
 import { loadAllTokens, resolveReferences } from "../lib/parser.js";
+import { resolveOutputMode } from "../lib/output.js";
+import {
+  AnalysisCache,
+  computeTokenFingerprint,
+  getAnalysisCache,
+} from "../lib/analysis-cache.js";
 import {
   computeContrast,
-  resolveTokenColor,
   type ContrastResult,
 } from "../lib/color/index.js";
 import {
@@ -24,17 +29,13 @@ import {
   EMPHASIS_MODIFIERS,
   COMPONENT_TOKEN_SURFACES,
   parseSemanticPath,
-  buildSemanticPath,
 } from "../lib/semantics/ontology.js";
 import {
-  evaluateScoping,
-  generateScopingReport,
   ALL_SCOPING_RULES,
 } from "../lib/semantics/scoping.js";
 import {
   scaffoldSemanticTokens,
   tokensToNestedJson,
-  mergeWithExisting,
   type ScaffoldOptions,
 } from "../lib/semantics/scaffold.js";
 import {
@@ -53,18 +54,58 @@ import {
 import {
   generateMigrationScenarios,
   compareScenarios,
-  compareWithReferenceSystem,
   type MigrationScenario,
   type ScenarioComparison,
   type ReferenceSystemComparison,
 } from "../lib/migration/scenarios.js";
 import {
-  generateTopologyReport,
   visualizeDependencyGraph,
   visualizeCoverageMatrix,
   visualizeTokenDistribution,
   visualizeAntiPatterns,
 } from "../lib/semantics/visualization.js";
+
+// ---------------------------------------------------------------------------
+// Cached audit helper — reuses audit results across multi-step workflows
+// ---------------------------------------------------------------------------
+
+async function cachedAudit(
+  projectRoot: string,
+  config: McpDsConfig,
+  opts?: { pathPrefixes?: string[]; skipRules?: string[] },
+): Promise<{ tokenMap: TokenMap; audit: SemanticAuditResult; fingerprint: string }> {
+  const tokenMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(tokenMap);
+
+  const fingerprint = computeTokenFingerprint(tokenMap);
+  const cache = getAnalysisCache();
+  const cacheKey = AnalysisCache.buildKey("audit", {
+    pathPrefixes: opts?.pathPrefixes,
+    skipRules: opts?.skipRules,
+  });
+
+  let filteredMap = tokenMap;
+  if (opts?.pathPrefixes?.length) {
+    filteredMap = new Map(
+      [...tokenMap].filter(([path]) =>
+        opts!.pathPrefixes!.some((prefix) => path.startsWith(prefix)),
+      ),
+    );
+  }
+
+  const cached = cache.get<SemanticAuditResult>(cacheKey, fingerprint);
+  if (cached) {
+    return { tokenMap: filteredMap, audit: cached, fingerprint };
+  }
+
+  const audit = auditSemanticTokens(filteredMap, {
+    pathPrefixes: opts?.pathPrefixes,
+    skipRules: opts?.skipRules,
+  });
+  cache.set(cacheKey, audit, fingerprint);
+
+  return { tokenMap: filteredMap, audit, fingerprint };
+}
 
 // ---------------------------------------------------------------------------
 // describe_ontology — explain the naming model
@@ -281,14 +322,12 @@ export async function auditSemanticsTool(
   args: {
     pathPrefix?: string;
     skipRules?: string;
+    statsOnly?: boolean;
+    outputMode?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<{ formatted: string; result: SemanticAuditResult }> {
-  // Load existing tokens
-  const tokenMap = await loadAllTokens(projectRoot, config);
-  resolveReferences(tokenMap);
-
   const pathPrefixes = args.pathPrefix
     ? args.pathPrefix.split(",").map((p) => p.trim())
     : undefined;
@@ -296,17 +335,101 @@ export async function auditSemanticsTool(
     ? args.skipRules.split(",").map((r) => r.trim())
     : undefined;
 
-  const result = auditSemanticTokens(tokenMap, {
+  const { audit: result } = await cachedAudit(projectRoot, config, {
     pathPrefixes,
     skipRules,
   });
 
-  // Format output
+  // Stats-only: return only aggregate numbers
+  if (args.statsOnly) {
+    const errors = result.scoping.violations.filter((v) => v.severity === "error").length;
+    const warnings = result.scoping.violations.filter((v) => v.severity === "warning").length;
+    return {
+      formatted: [
+        `Tokens: ${result.structure.totalTokens}`,
+        `Scoping: ${errors} errors, ${warnings} warnings`,
+        `Migrations: ${result.migration.length}`,
+        `Contrast: ${Math.round(result.accessibility.contrastScore * 100)}% (${result.accessibility.wcagFailures} WCAG, ${result.accessibility.apcaFailures} APCA failures)`,
+        `Coverage: ${Math.round(result.coverage.coverageScore * 100)}%`,
+      ].join(" | "),
+      result,
+    };
+  }
+
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+
+  // ---- compact mode ----
+  if (mode === "compact") {
+    const errors = result.scoping.violations.filter((v) => v.severity === "error");
+    const warnings = result.scoping.violations.filter((v) => v.severity === "warning");
+    const infos = result.scoping.violations.filter((v) => v.severity === "info");
+
+    const violationGroups = new Map<string, number>();
+    for (const v of result.scoping.violations) {
+      violationGroups.set(v.ruleId, (violationGroups.get(v.ruleId) ?? 0) + v.tokenPaths.length);
+    }
+    const groupStr = [...violationGroups.entries()]
+      .map(([id, count]) => `${id}(${count})`)
+      .join(", ");
+
+    const lines: string[] = [
+      `Health: ${result.structure.totalTokens} tokens | Errors: ${errors.length} | Warnings: ${warnings.length} | Info: ${infos.length}`,
+    ];
+    if (groupStr) lines.push(`Violations: ${groupStr}`);
+    lines.push(`Migrations: ${result.migration.length} suggestions`);
+    lines.push(
+      `Contrast: ${Math.round(result.accessibility.contrastScore * 100)}% score | ${result.accessibility.wcagFailures} WCAG failures | ${result.accessibility.apcaFailures} APCA failures`,
+    );
+    lines.push(`Coverage: ${Math.round(result.coverage.coverageScore * 100)}%`);
+
+    return { formatted: lines.join("\n"), result };
+  }
+
+  // ---- summary mode ----
+  if (mode === "summary") {
+    const lines: string[] = [];
+    lines.push(result.summary);
+    lines.push("");
+
+    if (result.scoping.violations.length > 0) {
+      const byRule = new Map<string, { severity: string; count: number }>();
+      for (const v of result.scoping.violations) {
+        const existing = byRule.get(v.ruleId);
+        if (existing) {
+          existing.count += v.tokenPaths.length;
+        } else {
+          byRule.set(v.ruleId, { severity: v.severity, count: v.tokenPaths.length });
+        }
+      }
+      lines.push("Scoping violations:");
+      for (const [ruleId, { severity, count }] of byRule) {
+        lines.push(`  ${severity}: ${ruleId} (${count} tokens)`);
+      }
+      lines.push("");
+    }
+
+    if (result.migration.length > 0) {
+      lines.push(`Migrations: ${result.migration.length} suggestions (top 5):`);
+      for (const m of result.migration.slice(0, 5)) {
+        lines.push(`  ${m.originalPath} -> ${m.suggestedPath} (${Math.round(m.confidence * 100)}%)`);
+      }
+      lines.push("");
+    }
+
+    lines.push(
+      `Contrast: ${Math.round(result.accessibility.contrastScore * 100)}% | ` +
+      `${result.accessibility.pairs.length} pairs, ` +
+      `${result.accessibility.wcagFailures} WCAG failures`,
+    );
+
+    return { formatted: lines.join("\n"), result };
+  }
+
+  // ---- full mode (backward-compatible) ----
   const lines: string[] = [];
   lines.push(result.summary);
   lines.push("");
 
-  // Detailed violations
   if (result.scoping.violations.length > 0) {
     lines.push("## Scoping Violations");
     lines.push("");
@@ -322,7 +445,6 @@ export async function auditSemanticsTool(
     }
   }
 
-  // Migration suggestions
   if (result.migration.length > 0) {
     lines.push("## Migration Suggestions");
     lines.push("");
@@ -337,7 +459,6 @@ export async function auditSemanticsTool(
     lines.push("");
   }
 
-  // Accessibility pairs
   if (result.accessibility.pairs.length > 0) {
     lines.push("## Accessibility Contrast Pairs");
     lines.push("");
@@ -353,10 +474,7 @@ export async function auditSemanticsTool(
     lines.push("");
   }
 
-  return {
-    formatted: lines.join("\n"),
-    result,
-  };
+  return { formatted: lines.join("\n"), result };
 }
 
 // ---------------------------------------------------------------------------
@@ -366,24 +484,67 @@ export async function auditSemanticsTool(
 export async function analyzeCoverageTool(
   args: {
     pathPrefix?: string;
+    statsOnly?: boolean;
+    outputMode?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<{ formatted: string }> {
-  // Load existing tokens
-  const tokenMap = await loadAllTokens(projectRoot, config);
-  resolveReferences(tokenMap);
+  const pathPrefixes = args.pathPrefix
+    ? [args.pathPrefix]
+    : undefined;
 
-  // Filter if needed
-  let filteredMap = tokenMap;
-  if (args.pathPrefix) {
-    filteredMap = new Map(
-      [...tokenMap].filter(([path]) => path.startsWith(args.pathPrefix!)),
-    );
+  const { audit: result } = await cachedAudit(projectRoot, config, {
+    pathPrefixes,
+  });
+  const { coverage } = result;
+
+  if (args.statsOnly) {
+    return {
+      formatted: `Coverage: ${Math.round(coverage.coverageScore * 100)}% | Covered: ${coverage.coveredContexts.length} | Missing: ${coverage.missingContexts.length}${coverage.missingContexts.length > 0 ? ` (${coverage.missingContexts.join(", ")})` : ""}`,
+    };
   }
 
-  const result = auditSemanticTokens(filteredMap);
-  const { coverage } = result;
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+
+  // ---- compact mode ----
+  if (mode === "compact") {
+    const gaps = coverage.matrix
+      .filter((c) => !c.present && c.required)
+      .map((c) => `${c.uxContext}×${c.propertyClass}`);
+    const lines: string[] = [
+      `Coverage: ${Math.round(coverage.coverageScore * 100)}% | Contexts: ${coverage.coveredContexts.length}/${coverage.coveredContexts.length + coverage.missingContexts.length}`,
+    ];
+    if (coverage.missingContexts.length > 0) {
+      lines.push(`Missing: ${coverage.missingContexts.join(", ")}`);
+    }
+    if (gaps.length > 0) {
+      lines.push(`Gaps: ${gaps.slice(0, 15).join(", ")}${gaps.length > 15 ? ` (+${gaps.length - 15} more)` : ""}`);
+    }
+    return { formatted: lines.join("\n") };
+  }
+
+  // ---- summary mode ----
+  if (mode === "summary") {
+    const lines: string[] = [
+      `# Coverage: ${Math.round(coverage.coverageScore * 100)}%`,
+      "",
+    ];
+    if (coverage.missingContexts.length > 0) {
+      lines.push(`Missing contexts: ${coverage.missingContexts.join(", ")}`);
+    }
+    const gaps = coverage.matrix
+      .filter((c) => !c.present && c.required)
+      .map((c) => `${c.uxContext}×${c.propertyClass}`);
+    if (gaps.length > 0) {
+      lines.push(`Required gaps (${gaps.length}): ${gaps.join(", ")}`);
+    }
+    return { formatted: lines.join("\n") };
+  }
+
+  // ---- full mode (backward-compatible) ----
+  const contexts = UX_CONTEXTS.map((u) => u.id);
+  const propClasses = ALL_PROPERTY_CLASSES.map((p) => p.id);
 
   const lines: string[] = [];
   lines.push("# Semantic Token Coverage Matrix");
@@ -391,11 +552,6 @@ export async function analyzeCoverageTool(
   lines.push(`Coverage score: **${Math.round(coverage.coverageScore * 100)}%**`);
   lines.push("");
 
-  // Build a matrix table
-  const contexts = UX_CONTEXTS.map((u) => u.id);
-  const propClasses = ALL_PROPERTY_CLASSES.map((p) => p.id);
-
-  // Header
   lines.push(`| Context | ${propClasses.join(" | ")} |`);
   lines.push(`| --- | ${propClasses.map(() => "---").join(" | ")} |`);
 
@@ -435,47 +591,126 @@ export async function checkContrastTool(
     pathPrefix?: string;
     algorithm?: string;
     threshold?: string;
+    failuresOnly?: boolean;
+    statsOnly?: boolean;
+    outputMode?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<{ formatted: string; results: unknown }> {
   const algorithm = (args.algorithm as "wcag21" | "apca" | "both") ?? "both";
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
 
   // --- Mode 1: Explicit color values ---
   if (args.foreground && args.background) {
     const result = computeContrast(args.foreground, args.background, algorithm);
-    const lines: string[] = [];
-    lines.push("# Contrast Check");
-    lines.push("");
-    lines.push(`**Foreground:** ${args.foreground}`);
-    lines.push(`**Background:** ${args.background}`);
-    lines.push("");
-    lines.push(formatContrastResult(result));
 
+    if (mode === "compact") {
+      const parts: string[] = [`${args.foreground} / ${args.background}:`];
+      if (result.wcag21) parts.push(`WCAG ${result.wcag21.ratio.toFixed(2)}:1 ${result.wcag21.levelNormal}`);
+      if (result.apca) parts.push(`APCA Lc ${result.apca.lc.toFixed(1)} ${result.apca.level}`);
+      return { formatted: parts.join(" | "), results: result };
+    }
+
+    const lines: string[] = [];
+    if (mode === "summary") {
+      lines.push(`Contrast: ${args.foreground} on ${args.background}`);
+    } else {
+      lines.push("# Contrast Check");
+      lines.push("");
+      lines.push(`**Foreground:** ${args.foreground}`);
+      lines.push(`**Background:** ${args.background}`);
+      lines.push("");
+    }
+    lines.push(formatContrastResult(result));
     return { formatted: lines.join("\n"), results: result };
   }
 
   // --- Mode 2: Scan token set for all foreground/background pairs ---
-  const tokenMap = await loadAllTokens(projectRoot, config);
-  resolveReferences(tokenMap);
+  const pathPrefixes = args.pathPrefix
+    ? args.pathPrefix.split(",").map((p) => p.trim())
+    : undefined;
 
-  // Optionally filter by path prefix
-  let filteredMap = tokenMap;
-  if (args.pathPrefix) {
-    const prefixes = args.pathPrefix.split(",").map((p) => p.trim());
-    filteredMap = new Map(
-      [...tokenMap].filter(([path]) =>
-        prefixes.some((prefix) => path.startsWith(prefix)),
-      ),
-    );
-  }
-
-  const auditResult = auditSemanticTokens(filteredMap);
+  const { tokenMap: filteredMap, audit: auditResult } = await cachedAudit(
+    projectRoot,
+    config,
+    { pathPrefixes },
+  );
   const { accessibility } = auditResult;
 
-  // Optional numeric threshold filter
   const minRatio = args.threshold ? parseFloat(args.threshold) : undefined;
+  const failing = accessibility.pairs.filter((p) => {
+    if (!p.computable) return false;
+    if (p.issue) return true;
+    if (minRatio && p.contrast?.wcag21 && p.contrast.wcag21.ratio < minRatio) return true;
+    return false;
+  });
 
+  const structuredResults = {
+    totalPairs: accessibility.pairs.length,
+    computablePairs: accessibility.computablePairs,
+    wcagFailures: accessibility.wcagFailures,
+    apcaFailures: accessibility.apcaFailures,
+    contrastScore: accessibility.contrastScore,
+    failingPairs: failing.map((p) => ({
+      foreground: p.foregroundPath,
+      background: p.backgroundPath,
+      contrast: p.contrast,
+      issue: p.issue,
+    })),
+  };
+
+  // Stats-only: just the numbers
+  if (args.statsOnly) {
+    return {
+      formatted: `Pairs: ${accessibility.pairs.length} | Computable: ${accessibility.computablePairs} | WCAG fail: ${accessibility.wcagFailures} | APCA fail: ${accessibility.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}%`,
+      results: structuredResults,
+    };
+  }
+
+  // ---- compact mode ----
+  if (mode === "compact") {
+    const lines: string[] = [
+      `Pairs: ${accessibility.pairs.length} | Computable: ${accessibility.computablePairs} | WCAG fail: ${accessibility.wcagFailures} | APCA fail: ${accessibility.apcaFailures} | Score: ${Math.round(accessibility.contrastScore * 100)}%`,
+    ];
+    for (const pair of failing.slice(0, 20)) {
+      const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
+      const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
+      lines.push(`FAIL ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
+    }
+    if (failing.length > 20) {
+      lines.push(`[+${failing.length - 20} more failures]`);
+    }
+    return { formatted: lines.join("\n"), results: structuredResults };
+  }
+
+  // ---- summary mode ----
+  if (mode === "summary") {
+    const lines: string[] = [
+      `Contrast audit: ${accessibility.pairs.length} pairs, score ${Math.round(accessibility.contrastScore * 100)}%`,
+      `Computable: ${accessibility.computablePairs} | WCAG failures: ${accessibility.wcagFailures} | APCA failures: ${accessibility.apcaFailures}`,
+      "",
+    ];
+    if (failing.length > 0) {
+      lines.push(`Failing pairs (${failing.length}):`);
+      for (const pair of failing.slice(0, 10)) {
+        const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
+        const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
+        lines.push(`  ${pair.foregroundPath} / ${pair.backgroundPath}: ${ratio}:1, Lc ${lc}`);
+      }
+      if (failing.length > 10) {
+        lines.push(`  ... and ${failing.length - 10} more.`);
+      }
+    } else {
+      lines.push("All computable pairs pass contrast thresholds.");
+    }
+    if (accessibility.unpairedTokens.length > 0) {
+      lines.push(`\nUnpaired: ${accessibility.unpairedTokens.length} tokens without matching pair.`);
+    }
+    return { formatted: lines.join("\n"), results: structuredResults };
+  }
+
+  // ---- full mode (backward-compatible) ----
   const lines: string[] = [];
   lines.push("# Contrast Audit");
   lines.push("");
@@ -485,14 +720,6 @@ export async function checkContrastTool(
     `APCA < 75: **${accessibility.apcaFailures}**`);
   lines.push(`Contrast score: **${Math.round(accessibility.contrastScore * 100)}%**`);
   lines.push("");
-
-  // Show failing pairs
-  const failing = accessibility.pairs.filter((p) => {
-    if (!p.computable) return false;
-    if (p.issue) return true;
-    if (minRatio && p.contrast?.wcag21 && p.contrast.wcag21.ratio < minRatio) return true;
-    return false;
-  });
 
   if (failing.length > 0) {
     lines.push("## Failing Pairs");
@@ -518,54 +745,37 @@ export async function checkContrastTool(
     lines.push("");
   }
 
-  // Show passing pairs summary
-  const passing = accessibility.pairs.filter((p) => p.computable && !p.issue);
-  if (passing.length > 0) {
-    lines.push("## Passing Pairs");
-    lines.push("");
-    lines.push(`${passing.length} pair(s) meet WCAG 2.1 AA and APCA thresholds.`);
+  if (!args.failuresOnly) {
+    const passing = accessibility.pairs.filter((p) => p.computable && !p.issue);
+    if (passing.length > 0) {
+      lines.push("## Passing Pairs");
+      lines.push("");
+      lines.push(`${passing.length} pair(s) meet WCAG 2.1 AA and APCA thresholds.`);
+      for (const pair of passing.slice(0, 10)) {
+        const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
+        const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
+        lines.push(`- \`${pair.foregroundPath}\` on \`${pair.backgroundPath}\`: ratio ${ratio}:1, Lc ${lc}`);
+      }
+      if (passing.length > 10) {
+        lines.push(`  ... and ${passing.length - 10} more.`);
+      }
+      lines.push("");
+    }
 
-    // Show first few as examples
-    for (const pair of passing.slice(0, 10)) {
-      const ratio = pair.contrast?.wcag21?.ratio.toFixed(2) ?? "?";
-      const lc = pair.contrast?.apca?.lc.toFixed(1) ?? "?";
-      lines.push(`- \`${pair.foregroundPath}\` on \`${pair.backgroundPath}\`: ratio ${ratio}:1, Lc ${lc}`);
+    if (accessibility.unpairedTokens.length > 0) {
+      lines.push("## Unpaired Tokens");
+      lines.push("");
+      lines.push(`${accessibility.unpairedTokens.length} token(s) have no matching foreground/background pair:`);
+      for (const t of accessibility.unpairedTokens.slice(0, 20)) {
+        lines.push(`- \`${t}\``);
+      }
+      if (accessibility.unpairedTokens.length > 20) {
+        lines.push(`  ... and ${accessibility.unpairedTokens.length - 20} more.`);
+      }
     }
-    if (passing.length > 10) {
-      lines.push(`  ... and ${passing.length - 10} more.`);
-    }
-    lines.push("");
   }
 
-  // Unpaired tokens warning
-  if (accessibility.unpairedTokens.length > 0) {
-    lines.push("## Unpaired Tokens");
-    lines.push("");
-    lines.push(`${accessibility.unpairedTokens.length} token(s) have no matching foreground/background pair:`);
-    for (const t of accessibility.unpairedTokens.slice(0, 20)) {
-      lines.push(`- \`${t}\``);
-    }
-    if (accessibility.unpairedTokens.length > 20) {
-      lines.push(`  ... and ${accessibility.unpairedTokens.length - 20} more.`);
-    }
-  }
-
-  return {
-    formatted: lines.join("\n"),
-    results: {
-      totalPairs: accessibility.pairs.length,
-      computablePairs: accessibility.computablePairs,
-      wcagFailures: accessibility.wcagFailures,
-      apcaFailures: accessibility.apcaFailures,
-      contrastScore: accessibility.contrastScore,
-      failingPairs: failing.map((p) => ({
-        foreground: p.foregroundPath,
-        background: p.backgroundPath,
-        contrast: p.contrast,
-        issue: p.issue,
-      })),
-    },
-  };
+  return { formatted: lines.join("\n"), results: structuredResults };
 }
 
 /**
@@ -602,26 +812,113 @@ export async function analyzeTopologyTool(
     includeAntiPatterns?: boolean;
     graphMaxNodes?: number;
     graphMaxDepth?: number;
+    statsOnly?: boolean;
+    outputMode?: string;
   },
   projectRoot: string,
   config: McpDsConfig,
 ): Promise<{ formatted: string; json: unknown }> {
-  // Load existing tokens
-  const tokenMap = await loadAllTokens(projectRoot, config);
-  resolveReferences(tokenMap);
-
   const pathPrefixes = args.pathPrefix
     ? args.pathPrefix.split(",").map((p) => p.trim())
     : undefined;
 
-  // Run audit to get all analyses
-  const audit = auditSemanticTokens(tokenMap, { pathPrefixes });
+  const { audit } = await cachedAudit(projectRoot, config, { pathPrefixes });
 
+  const jsonData = {
+    overview: {
+      totalTokens: audit.structure.totalTokens,
+      primitives: audit.dependencies.metrics.primitiveCount,
+      semanticTokens: audit.dependencies.metrics.semanticCount,
+      isolated: audit.dependencies.metrics.isolatedCount,
+      maxDepth: audit.dependencies.metrics.maxDepth,
+      avgDepth: audit.dependencies.metrics.avgDepth,
+      totalEdges: audit.dependencies.metrics.totalEdges,
+    },
+    dependencies: {
+      issues: audit.dependencies.issues,
+      metrics: audit.dependencies.metrics,
+    },
+    antiPatterns: audit.antiPatterns,
+    coverage: {
+      score: audit.coverage.coverageScore,
+      coveredContexts: audit.coverage.coveredContexts.length,
+      missingContexts: audit.coverage.missingContexts,
+    },
+  };
+
+  // Stats-only: bare metrics
+  if (args.statsOnly) {
+    const errors = audit.dependencies.issues.filter((i) => i.severity === "error").length;
+    const warnings = audit.dependencies.issues.filter((i) => i.severity === "warning").length;
+    return {
+      formatted: `Tokens: ${audit.structure.totalTokens} | Primitives: ${audit.dependencies.metrics.primitiveCount} | Semantic: ${audit.dependencies.metrics.semanticCount} | Depth: max ${audit.dependencies.metrics.maxDepth} | Issues: ${errors}E/${warnings}W | Anti-patterns: ${audit.antiPatterns.summary.total} | Coverage: ${Math.round(audit.coverage.coverageScore * 100)}%`,
+      json: jsonData,
+    };
+  }
+
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+
+  // ---- compact mode ----
+  if (mode === "compact") {
+    const errors = audit.dependencies.issues.filter((i) => i.severity === "error");
+    const warnings = audit.dependencies.issues.filter((i) => i.severity === "warning");
+
+    const issueTypes = new Map<string, number>();
+    for (const i of audit.dependencies.issues) {
+      if (i.severity !== "info") {
+        issueTypes.set(i.type, (issueTypes.get(i.type) ?? 0) + 1);
+      }
+    }
+    const issueStr = [...issueTypes.entries()].map(([t, c]) => `${t}:${c}`).join(", ");
+
+    const lines: string[] = [
+      `Tokens: ${audit.structure.totalTokens} | Primitives: ${audit.dependencies.metrics.primitiveCount} | Semantic: ${audit.dependencies.metrics.semanticCount} | Isolated: ${audit.dependencies.metrics.isolatedCount}`,
+      `Depth: max ${audit.dependencies.metrics.maxDepth}, avg ${audit.dependencies.metrics.avgDepth.toFixed(1)} | Refs: ${audit.dependencies.metrics.totalEdges}`,
+      `Issues: ${errors.length} errors, ${warnings.length} warnings${issueStr ? ` (${issueStr})` : ""}`,
+      `Anti-patterns: ${audit.antiPatterns.summary.total} | Coverage: ${Math.round(audit.coverage.coverageScore * 100)}%`,
+    ];
+
+    return { formatted: lines.join("\n"), json: jsonData };
+  }
+
+  // ---- summary mode ----
+  if (mode === "summary") {
+    const errors = audit.dependencies.issues.filter((i) => i.severity === "error");
+    const warnings = audit.dependencies.issues.filter((i) => i.severity === "warning");
+
+    const lines: string[] = [
+      `# Topology: ${audit.structure.totalTokens} tokens`,
+      "",
+      `Primitives: ${audit.dependencies.metrics.primitiveCount} | Semantic: ${audit.dependencies.metrics.semanticCount} | Isolated: ${audit.dependencies.metrics.isolatedCount}`,
+      `Max depth: ${audit.dependencies.metrics.maxDepth} | Avg: ${audit.dependencies.metrics.avgDepth.toFixed(2)} | References: ${audit.dependencies.metrics.totalEdges}`,
+      "",
+    ];
+
+    if (errors.length > 0 || warnings.length > 0) {
+      lines.push(`Issues: ${errors.length} errors, ${warnings.length} warnings`);
+      for (const issue of errors.slice(0, 5)) {
+        lines.push(`  ERROR ${issue.type}: ${issue.message}`);
+      }
+      for (const issue of warnings.slice(0, 5)) {
+        lines.push(`  WARN ${issue.type}: ${issue.message}`);
+      }
+      lines.push("");
+    }
+
+    lines.push(`Anti-patterns: ${audit.antiPatterns.summary.total} total`);
+    lines.push(`Coverage: ${Math.round(audit.coverage.coverageScore * 100)}%`);
+    if (audit.coverage.missingContexts.length > 0) {
+      lines.push(`Missing: ${audit.coverage.missingContexts.join(", ")}`);
+    }
+
+    return { formatted: lines.join("\n"), json: jsonData };
+  }
+
+  // ---- full mode (backward-compatible) ----
   const includeGraph = args.includeGraph ?? true;
   const includeDistribution = args.includeDistribution ?? true;
   const includeAntiPatterns = args.includeAntiPatterns ?? true;
 
-  // Build formatted output
   const lines: string[] = [];
 
   lines.push("# Token Topology Analysis");
@@ -637,14 +934,13 @@ export async function analyzeTopologyTool(
   lines.push(`- **Total References**: ${audit.dependencies.metrics.totalEdges}`);
   lines.push("");
 
-  // Dependency issues
   if (audit.dependencies.issues.length > 0) {
     lines.push("## Dependency Issues");
     lines.push("");
 
-    const errors = audit.dependencies.issues.filter(i => i.severity === "error");
-    const warnings = audit.dependencies.issues.filter(i => i.severity === "warning");
-    const info = audit.dependencies.issues.filter(i => i.severity === "info");
+    const errors = audit.dependencies.issues.filter((i) => i.severity === "error");
+    const warnings = audit.dependencies.issues.filter((i) => i.severity === "warning");
+    const info = audit.dependencies.issues.filter((i) => i.severity === "info");
 
     if (errors.length > 0) {
       lines.push(`### ❌ Errors (${errors.length})`);
@@ -652,7 +948,7 @@ export async function analyzeTopologyTool(
       for (const issue of errors.slice(0, 10)) {
         lines.push(`- **${issue.type}**: ${issue.message}`);
         if (issue.tokenPaths.length <= 5) {
-          lines.push(`  - Tokens: ${issue.tokenPaths.map(p => `\`${p}\``).join(", ")}`);
+          lines.push(`  - Tokens: ${issue.tokenPaths.map((p) => `\`${p}\``).join(", ")}`);
         }
       }
       if (errors.length > 10) {
@@ -667,7 +963,7 @@ export async function analyzeTopologyTool(
       for (const issue of warnings.slice(0, 10)) {
         lines.push(`- **${issue.type}**: ${issue.message}`);
         if (issue.tokenPaths.length <= 3) {
-          lines.push(`  - Tokens: ${issue.tokenPaths.map(p => `\`${p}\``).join(", ")}`);
+          lines.push(`  - Tokens: ${issue.tokenPaths.map((p) => `\`${p}\``).join(", ")}`);
         }
       }
       if (warnings.length > 10) {
@@ -687,17 +983,14 @@ export async function analyzeTopologyTool(
     lines.push("");
   }
 
-  // Token distribution
   if (includeDistribution) {
     lines.push(visualizeTokenDistribution(audit.structure));
     lines.push("");
   }
 
-  // Coverage matrix
   lines.push(visualizeCoverageMatrix(audit.coverage, { showCounts: true }));
   lines.push("");
 
-  // Dependency graph
   if (includeGraph) {
     lines.push("## Dependency Graph");
     lines.push("");
@@ -710,27 +1003,25 @@ export async function analyzeTopologyTool(
     lines.push("");
   }
 
-  // Anti-patterns
   if (includeAntiPatterns && audit.antiPatterns.summary.total > 0) {
     lines.push(visualizeAntiPatterns(audit.antiPatterns, { maxPerType: 5 }));
     lines.push("");
   }
 
-  // Recommendations
   lines.push("## Recommendations");
   lines.push("");
 
   const recs: string[] = [];
 
-  if (audit.dependencies.issues.filter(i => i.type === "unresolved").length > 0) {
+  if (audit.dependencies.issues.filter((i) => i.type === "unresolved").length > 0) {
     recs.push("- **Fix unresolved references** to ensure token integrity");
   }
 
-  if (audit.dependencies.issues.filter(i => i.type === "circular").length > 0) {
+  if (audit.dependencies.issues.filter((i) => i.type === "circular").length > 0) {
     recs.push("- **Break circular dependencies** by introducing intermediate tokens");
   }
 
-  if (audit.dependencies.issues.filter(i => i.type === "deep-chain").length > 0) {
+  if (audit.dependencies.issues.filter((i) => i.type === "deep-chain").length > 0) {
     recs.push("- **Flatten deep reference chains** (>3 levels) for better maintainability");
   }
 
@@ -754,30 +1045,7 @@ export async function analyzeTopologyTool(
 
   lines.push("");
 
-  return {
-    formatted: lines.join("\n"),
-    json: {
-      overview: {
-        totalTokens: audit.structure.totalTokens,
-        primitives: audit.dependencies.metrics.primitiveCount,
-        semanticTokens: audit.dependencies.metrics.semanticCount,
-        isolated: audit.dependencies.metrics.isolatedCount,
-        maxDepth: audit.dependencies.metrics.maxDepth,
-        avgDepth: audit.dependencies.metrics.avgDepth,
-        totalEdges: audit.dependencies.metrics.totalEdges,
-      },
-      dependencies: {
-        issues: audit.dependencies.issues,
-        metrics: audit.dependencies.metrics,
-      },
-      antiPatterns: audit.antiPatterns,
-      coverage: {
-        score: audit.coverage.coverageScore,
-        coveredContexts: audit.coverage.coveredContexts.length,
-        missingContexts: audit.coverage.missingContexts,
-      },
-    },
-  };
+  return { formatted: lines.join("\n"), json: jsonData };
 }
 
 // ---------------------------------------------------------------------------
@@ -1209,6 +1477,250 @@ export async function executeMigrationTool(
       scenario,
       phases: phasesToExecute,
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// verify_proposal — pre-commit verification gate
+// ---------------------------------------------------------------------------
+
+export interface VerifyProposalResult {
+  passed: boolean;
+  unresolvedRefs: string[];
+  contrastRegressions: Array<{
+    foreground: string;
+    background: string;
+    baselineRatio?: number;
+    proposedRatio?: number;
+    issue: string;
+  }>;
+  namingIssues: Array<{
+    path: string;
+    issue: string;
+  }>;
+  formatted: string;
+}
+
+export async function verifyProposalTool(
+  args: {
+    proposedTokens: string;
+    checkContrast?: boolean;
+    checkReferences?: boolean;
+    checkNaming?: boolean;
+    baselineTheme?: string;
+    outputMode?: string;
+  },
+  projectRoot: string,
+  config: McpDsConfig,
+): Promise<VerifyProposalResult> {
+  const checkContrast = args.checkContrast ?? true;
+  const checkReferences = args.checkReferences ?? true;
+  const checkNaming = args.checkNaming ?? true;
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+
+  // Parse proposed tokens
+  let proposed: Record<string, { value?: unknown; type?: string; description?: string }>;
+  try {
+    proposed = JSON.parse(args.proposedTokens);
+  } catch {
+    return {
+      passed: false,
+      unresolvedRefs: [],
+      contrastRegressions: [],
+      namingIssues: [],
+      formatted: "Error: proposedTokens is not valid JSON.",
+    };
+  }
+
+  // Load existing tokens
+  const existingMap = await loadAllTokens(projectRoot, config);
+  resolveReferences(existingMap);
+
+  // Build merged map with proposed tokens overlaid
+  const mergedMap: import("../lib/types.js").TokenMap = new Map(existingMap);
+  for (const [path, def] of Object.entries(proposed)) {
+    mergedMap.set(path, {
+      path,
+      value: def.value,
+      type: (def.type as any) ?? "color",
+      description: def.description,
+      source: "proposal",
+    });
+  }
+  resolveReferences(mergedMap);
+
+  const unresolvedRefs: string[] = [];
+  const contrastRegressions: VerifyProposalResult["contrastRegressions"] = [];
+  const namingIssues: VerifyProposalResult["namingIssues"] = [];
+
+  // --- Check 1: Unresolved references ---
+  if (checkReferences) {
+    const refPattern = /\{([^}]+)\}/g;
+    for (const [path] of Object.entries(proposed)) {
+      const token = mergedMap.get(path);
+      if (!token) continue;
+      const resolved = String(token.resolvedValue ?? token.value ?? "");
+      if (refPattern.test(resolved)) {
+        unresolvedRefs.push(`${path}: ${resolved}`);
+      }
+      refPattern.lastIndex = 0;
+    }
+  }
+
+  // --- Check 2: Contrast regressions ---
+  if (checkContrast) {
+    const baselineAudit = auditSemanticTokens(existingMap);
+    const mergedAudit = auditSemanticTokens(mergedMap);
+
+    const baselineFailSet = new Set(
+      baselineAudit.accessibility.pairs
+        .filter((p) => p.computable && p.issue)
+        .map((p) => `${p.foregroundPath}|${p.backgroundPath}`),
+    );
+
+    for (const pair of mergedAudit.accessibility.pairs) {
+      if (!pair.computable || !pair.issue) continue;
+      const key = `${pair.foregroundPath}|${pair.backgroundPath}`;
+      if (!baselineFailSet.has(key)) {
+        const baselinePair = baselineAudit.accessibility.pairs.find(
+          (p) => p.foregroundPath === pair.foregroundPath && p.backgroundPath === pair.backgroundPath,
+        );
+        contrastRegressions.push({
+          foreground: pair.foregroundPath,
+          background: pair.backgroundPath,
+          baselineRatio: baselinePair?.contrast?.wcag21?.ratio,
+          proposedRatio: pair.contrast?.wcag21?.ratio,
+          issue: pair.issue,
+        });
+      }
+    }
+  }
+
+  // --- Check 3: Semantic naming compliance ---
+  if (checkNaming) {
+    for (const path of Object.keys(proposed)) {
+      const parsed = parseSemanticPath(path);
+      if (!parsed) {
+        namingIssues.push({
+          path,
+          issue: `Does not follow semantic naming formula: propertyClass.uxContext.intent[.modifier][.state]`,
+        });
+        continue;
+      }
+      const validPCs = ALL_PROPERTY_CLASSES.map((p) => p.id);
+      if (!validPCs.includes(parsed.propertyClass)) {
+        namingIssues.push({
+          path,
+          issue: `Unknown property class "${parsed.propertyClass}". Valid: ${validPCs.join(", ")}`,
+        });
+      }
+      if (parsed.uxContext) {
+        const validContexts = UX_CONTEXTS.map((u) => u.id);
+        if (!validContexts.includes(parsed.uxContext)) {
+          namingIssues.push({
+            path,
+            issue: `Unknown UX context "${parsed.uxContext}". Valid: ${validContexts.join(", ")}`,
+          });
+        }
+      }
+      const validIntents = SEMANTIC_INTENTS.map((i) => i.id);
+      if (!validIntents.includes(parsed.intent)) {
+        namingIssues.push({
+          path,
+          issue: `Unknown intent "${parsed.intent}". Valid: ${validIntents.join(", ")}`,
+        });
+      }
+    }
+  }
+
+  const passed =
+    unresolvedRefs.length === 0 &&
+    contrastRegressions.length === 0 &&
+    namingIssues.length === 0;
+
+  // Format output
+  let formatted: string;
+
+  if (mode === "compact") {
+    const parts = [passed ? "PASS" : "FAIL"];
+    if (unresolvedRefs.length > 0) parts.push(`Unresolved: ${unresolvedRefs.length}`);
+    if (contrastRegressions.length > 0) parts.push(`Contrast regressions: ${contrastRegressions.length}`);
+    if (namingIssues.length > 0) parts.push(`Naming: ${namingIssues.length}`);
+    formatted = parts.join(" | ");
+  } else if (mode === "summary") {
+    const lines: string[] = [
+      `Verification: ${passed ? "PASS" : "FAIL"} (${Object.keys(proposed).length} proposed tokens)`,
+    ];
+    if (unresolvedRefs.length > 0) {
+      lines.push(`Unresolved references (${unresolvedRefs.length}):`);
+      for (const r of unresolvedRefs.slice(0, 5)) lines.push(`  ${r}`);
+    }
+    if (contrastRegressions.length > 0) {
+      lines.push(`Contrast regressions (${contrastRegressions.length}):`);
+      for (const r of contrastRegressions.slice(0, 5)) {
+        lines.push(`  ${r.foreground} / ${r.background}: ${r.baselineRatio?.toFixed(2) ?? "?"} -> ${r.proposedRatio?.toFixed(2) ?? "?"}`);
+      }
+    }
+    if (namingIssues.length > 0) {
+      lines.push(`Naming issues (${namingIssues.length}):`);
+      for (const n of namingIssues.slice(0, 5)) lines.push(`  ${n.path}: ${n.issue}`);
+    }
+    formatted = lines.join("\n");
+  } else {
+    const lines: string[] = [
+      `# Proposal Verification: ${passed ? "PASSED" : "FAILED"}`,
+      "",
+      `Proposed tokens: **${Object.keys(proposed).length}**`,
+      "",
+    ];
+
+    if (unresolvedRefs.length > 0) {
+      lines.push(`## Unresolved References (${unresolvedRefs.length})`);
+      lines.push("");
+      for (const r of unresolvedRefs) {
+        lines.push(`- \`${r}\``);
+      }
+      lines.push("");
+    } else if (checkReferences) {
+      lines.push("## References: All resolved");
+      lines.push("");
+    }
+
+    if (contrastRegressions.length > 0) {
+      lines.push(`## Contrast Regressions (${contrastRegressions.length})`);
+      lines.push("");
+      for (const r of contrastRegressions) {
+        const before = r.baselineRatio?.toFixed(2) ?? "N/A";
+        const after = r.proposedRatio?.toFixed(2) ?? "N/A";
+        lines.push(`- \`${r.foreground}\` on \`${r.background}\`: ${before}:1 → ${after}:1 — ${r.issue}`);
+      }
+      lines.push("");
+    } else if (checkContrast) {
+      lines.push("## Contrast: No regressions");
+      lines.push("");
+    }
+
+    if (namingIssues.length > 0) {
+      lines.push(`## Naming Issues (${namingIssues.length})`);
+      lines.push("");
+      for (const n of namingIssues) {
+        lines.push(`- \`${n.path}\`: ${n.issue}`);
+      }
+      lines.push("");
+    } else if (checkNaming) {
+      lines.push("## Naming: All compliant");
+      lines.push("");
+    }
+
+    formatted = lines.join("\n");
+  }
+
+  return {
+    passed,
+    unresolvedRefs,
+    contrastRegressions,
+    namingIssues,
+    formatted,
   };
 }
 

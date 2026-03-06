@@ -14,9 +14,14 @@ import type {
 import {
   DimensionRegistry,
   projectTokens,
-  diffProjections,
   type TokenDiff,
 } from "../lib/themes/index.js";
+import {
+  type OutputMode,
+  resolveOutputMode,
+  compactTokenLine,
+  summaryTokenLine,
+} from "../lib/output.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +111,12 @@ export interface ResolveBrandArgs {
   pathPrefix?: string;
   /** Max tokens to return. */
   limit?: number;
+  /** Skip the first N tokens (pagination). */
+  offset?: number;
+  /** Return only the total count. */
+  countOnly?: boolean;
+  /** Output verbosity: compact, summary, or full. */
+  outputMode?: OutputMode;
 }
 
 export interface ResolveBrandResult {
@@ -181,28 +192,69 @@ export async function resolveBrandTool(
     if (args.pathPrefix) {
       tokens = tokens.filter((t) => t.path.startsWith(args.pathPrefix!));
     }
-    const limit =
-      args.limit ?? brandConfig.limits?.resolveBrand ?? 100;
-    const limited = tokens.slice(0, limit);
+    const offset = args.offset ?? 0;
+    const limit = args.limit ?? brandConfig.limits?.resolveBrand ?? 100;
+    const limited = tokens.slice(offset, offset + limit);
 
+    if (args.countOnly) {
+      const coordStr = projection.coordinates
+        .map((c) => `${c.dimension}=${c.value}`)
+        .join(", ");
+      return {
+        brand: args.brand,
+        coordinates: projection.coordinates,
+        count: tokens.length,
+        tokens: [],
+        formatted: `Brand "${brand.name}" (${coordStr}): ${tokens.length} tokens.`,
+      };
+    }
+
+    const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
     const coordStr = projection.coordinates
       .map((c) => `${c.dimension}=${c.value}`)
       .join(", ");
 
-    const lines: string[] = [
-      `**Brand "${brand.name}" resolved** (${coordStr})`,
-      `Showing ${limited.length} of ${tokens.length} tokens:\n`,
-    ];
+    let formatted: string;
 
-    for (const t of limited) {
-      const val = t.resolvedValue ?? t.value;
-      lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
-    }
-
-    if (tokens.length > limit) {
-      lines.push(
-        `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
-      );
+    if (mode === "compact") {
+      const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length}/${tokens.length}` : `${limited.length}/${tokens.length}`;
+      const lines: string[] = [
+        `Brand: "${brand.name}" (${coordStr}) | ${rangeLabel} tokens`,
+      ];
+      for (const t of limited) {
+        lines.push(compactTokenLine(t));
+      }
+      if (offset + limited.length < tokens.length) {
+        lines.push(`[Use resolve_brand(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+      }
+      formatted = lines.join("\n");
+    } else if (mode === "summary") {
+      const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length} of ${tokens.length}` : `${limited.length} of ${tokens.length}`;
+      const lines: string[] = [
+        `**Brand "${brand.name}" resolved** (${coordStr}) — ${rangeLabel} tokens:`,
+      ];
+      for (const t of limited) {
+        lines.push(`  ${summaryTokenLine(t)}`);
+      }
+      if (offset + limited.length < tokens.length) {
+        lines.push(`[Use resolve_brand(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+      }
+      formatted = lines.join("\n");
+    } else {
+      const lines: string[] = [
+        `**Brand "${brand.name}" resolved** (${coordStr})`,
+        `Showing ${limited.length} of ${tokens.length} tokens:\n`,
+      ];
+      for (const t of limited) {
+        const val = t.resolvedValue ?? t.value;
+        lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
+      }
+      if (offset + limited.length < tokens.length) {
+        lines.push(
+          `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
+        );
+      }
+      formatted = lines.join("\n");
     }
 
     return {
@@ -215,7 +267,7 @@ export async function resolveBrandTool(
         resolvedValue: t.resolvedValue,
         type: t.type,
       })),
-      formatted: lines.join("\n"),
+      formatted,
     };
   }
 
@@ -230,23 +282,62 @@ export async function resolveBrandTool(
   if (args.pathPrefix) {
     tokens = tokens.filter((t) => t.path.startsWith(args.pathPrefix!));
   }
+  const offset = args.offset ?? 0;
   const limit = args.limit ?? brandConfig.limits?.resolveBrand ?? 100;
-  const limited = tokens.slice(0, limit);
+  const limited = tokens.slice(offset, offset + limit);
 
-  const lines: string[] = [
-    `**Brand "${brand.name}" resolved**`,
-    `Showing ${limited.length} of ${tokens.length} tokens:\n`,
-  ];
-
-  for (const t of limited) {
-    const val = t.resolvedValue ?? t.value;
-    lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
+  if (args.countOnly) {
+    return {
+      brand: args.brand,
+      coordinates: [],
+      count: tokens.length,
+      tokens: [],
+      formatted: `Brand "${brand.name}": ${tokens.length} tokens.`,
+    };
   }
 
-  if (tokens.length > limit) {
-    lines.push(
-      `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
-    );
+  const mode = resolveOutputMode(args.outputMode, config.defaultOutputMode);
+  let formatted: string;
+
+  if (mode === "compact") {
+    const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length}/${tokens.length}` : `${limited.length}/${tokens.length}`;
+    const lines: string[] = [
+      `Brand: "${brand.name}" | ${rangeLabel} tokens`,
+    ];
+    for (const t of limited) {
+      lines.push(compactTokenLine(t));
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(`[Use resolve_brand(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+    }
+    formatted = lines.join("\n");
+  } else if (mode === "summary") {
+    const rangeLabel = offset > 0 ? `${offset + 1}–${offset + limited.length} of ${tokens.length}` : `${limited.length} of ${tokens.length}`;
+    const lines: string[] = [
+      `**Brand "${brand.name}" resolved** — ${rangeLabel} tokens:`,
+    ];
+    for (const t of limited) {
+      lines.push(`  ${summaryTokenLine(t)}`);
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(`[Use resolve_brand(offset: ${offset + limited.length}, limit: ${limit}) for next page.]`);
+    }
+    formatted = lines.join("\n");
+  } else {
+    const lines: string[] = [
+      `**Brand "${brand.name}" resolved**`,
+      `Showing ${limited.length} of ${tokens.length} tokens:\n`,
+    ];
+    for (const t of limited) {
+      const val = t.resolvedValue ?? t.value;
+      lines.push(`  \`${t.path}\`: ${JSON.stringify(val)}`);
+    }
+    if (offset + limited.length < tokens.length) {
+      lines.push(
+        `\n---\n_To retrieve all ${tokens.length} tokens, call resolve_brand again with limit: ${tokens.length}._`,
+      );
+    }
+    formatted = lines.join("\n");
   }
 
   return {
@@ -259,7 +350,7 @@ export async function resolveBrandTool(
       resolvedValue: t.resolvedValue,
       type: t.type,
     })),
-    formatted: lines.join("\n"),
+    formatted,
   };
 }
 

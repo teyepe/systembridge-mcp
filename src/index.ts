@@ -21,7 +21,6 @@ const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
 import { loadConfig, resolveProjectRoot } from "./config/loader.js";
 import {
-  listTokenResources,
   readTokenResource,
 } from "./resources/tokens.js";
 import {
@@ -55,6 +54,7 @@ import {
   analyzeTopologyTool,
   generateRefactorScenariosTool,
   executeMigrationTool,
+  verifyProposalTool,
 } from "./tools/semantics.js";
 import {
   generatePaletteTool,
@@ -202,6 +202,28 @@ server.tool(
       .string()
       .optional()
       .describe("Filter by category, e.g. 'spacing' or 'colors'"),
+    offset: z
+      .number()
+      .optional()
+      .describe(
+        "Skip the first N results (for pagination). Use with limit to page through large result sets.",
+      ),
+    sortBy: z
+      .enum(["path", "type", "value"])
+      .optional()
+      .describe("Sort results by field. Default: path."),
+    countOnly: z
+      .boolean()
+      .optional()
+      .describe(
+        "Return only the total count of matching tokens, no token data. Extremely context-efficient.",
+      ),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
+      ),
   },
   async (args) => {
     const query: TokenSearchQuery = {
@@ -221,7 +243,13 @@ server.tool(
       PROJECT_ROOT,
       config,
     );
-    const formatted = formatSearchResults(results, totalCount);
+    const formatted = formatSearchResults(
+      results,
+      totalCount,
+      args.outputMode ?? config.defaultOutputMode,
+      args.countOnly,
+      args.offset,
+    );
     return {
       content: [
         {
@@ -368,6 +396,20 @@ server.tool(
       .describe(
         "Max tokens to return. Default from config limits.resolveTheme or 100.",
       ),
+    offset: z
+      .number()
+      .optional()
+      .describe("Skip the first N tokens (for pagination). Use with limit."),
+    countOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only the total token count, no data. Extremely context-efficient."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
+      ),
   },
   async (args) => {
     const { formatted } = await resolveThemeTool(args, PROJECT_ROOT, config);
@@ -430,6 +472,20 @@ server.tool(
       .optional()
       .describe(
         "Max tokens to return. Default from config limits.resolveBrand or 100.",
+      ),
+    offset: z
+      .number()
+      .optional()
+      .describe("Skip the first N tokens (for pagination). Use with limit."),
+    countOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only the total token count, no data. Extremely context-efficient."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
       ),
   },
   async (args) => {
@@ -628,6 +684,16 @@ server.tool(
       .describe(
         "Comma-separated rule IDs to skip, e.g. 'over-abstraction,cross-concern-shared-value'.",
       ),
+    statsOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only aggregate metrics (health, counts, scores). No per-token details."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
+      ),
   },
   async (args) => {
     const { formatted } = await auditSemanticsTool(
@@ -650,6 +716,16 @@ server.tool(
       .optional()
       .describe(
         "Only analyze tokens starting with this path prefix.",
+      ),
+    statsOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only coverage score and missing context list. No matrix table."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
       ),
   },
   async (args) => {
@@ -698,6 +774,22 @@ server.tool(
       .describe(
         "Minimum WCAG contrast ratio to consider passing (e.g. '4.5' for AA normal text). " +
           "Only affects which pairs are flagged in scan mode.",
+      ),
+    failuresOnly: z
+      .boolean()
+      .optional()
+      .describe(
+        "Only show failing contrast pairs, omitting passing pairs and unpaired tokens. Default: false.",
+      ),
+    statsOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only pair counts and scores. No per-pair details."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
       ),
   },
   async (args) => {
@@ -754,6 +846,16 @@ server.tool(
       .optional()
       .describe(
         "Maximum reference depth to show in dependency graph. Default: 3.",
+      ),
+    statsOnly: z
+      .boolean()
+      .optional()
+      .describe("Return only aggregate metrics. No graph, distribution, or anti-pattern details."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (terse, saves context), 'summary' (key findings), 'full' (verbose, default).",
       ),
   },
   async (args) => {
@@ -887,6 +989,52 @@ server.tool(
         skipValidation: args.skipValidation,
       });
     return { content: [{ type: "text" as const, text: formatted }] };
+  },
+);
+
+// ---- verify_proposal ------------------------------------------------------
+
+server.tool(
+  "verify_proposal",
+  "Pre-commit verification gate for proposed token changes. Validates a set of proposed " +
+    "tokens against three criteria: (1) no unresolved references after merging with existing tokens, " +
+    "(2) no contrast regressions vs. the current token set, (3) semantic naming compliance " +
+    "with the ontology. Returns PASS/FAIL with detailed findings. " +
+    "Use this before writing proposed token changes to ensure integrity.",
+  {
+    proposedTokens: z
+      .string()
+      .describe(
+        "JSON object of proposed tokens. Keys are token paths, values are " +
+          "{value, type?, description?}. Example: " +
+          '{"background.action.accent": {"value": "{color.core.blue.500}", "type": "color"}}',
+      ),
+    checkContrast: z
+      .boolean()
+      .optional()
+      .describe("Check for contrast regressions vs. current tokens. Default: true."),
+    checkReferences: z
+      .boolean()
+      .optional()
+      .describe("Check for unresolved references after merging. Default: true."),
+    checkNaming: z
+      .boolean()
+      .optional()
+      .describe("Check semantic naming compliance with ontology. Default: true."),
+    baselineTheme: z
+      .string()
+      .optional()
+      .describe("Theme to check contrast against (future). Default: checks against base tokens."),
+    outputMode: z
+      .enum(["compact", "summary", "full"])
+      .optional()
+      .describe(
+        "Output verbosity: 'compact' (PASS/FAIL + counts), 'summary' (top findings), 'full' (detailed report).",
+      ),
+  },
+  async (args) => {
+    const result = await verifyProposalTool(args, PROJECT_ROOT, config);
+    return { content: [{ type: "text" as const, text: result.formatted }] };
   },
 );
 
@@ -1719,7 +1867,7 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[systembridge-mcp] Server ready — 33 tools, 7 prompts, 1 resource`);
+  console.error(`[systembridge-mcp] Server ready — 34 tools, 7 prompts, 1 resource`);
 }
 
 main().catch((err) => {

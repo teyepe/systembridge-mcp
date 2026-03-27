@@ -51,7 +51,7 @@
     "glob": "^13.0.4",
     "json5": "^2.2.3",
     "style-dictionary": "^5.3.1",
-    "yaml": "^2.8.2",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

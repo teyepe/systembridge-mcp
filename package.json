@@ -45,13 +45,13 @@
     "minimatch": "^10.2.1"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "colorjs.io": "^0.6.1",
     "fast-glob": "^3.3.3",
     "glob": "^13.0.4",
     "json5": "^2.2.3",
-    "style-dictionary": "^5.3.1",
-    "yaml": "^2.8.2",
+    "style-dictionary": "^5.4.0",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
